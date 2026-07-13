@@ -1,0 +1,57 @@
+# 错误码与排查
+
+`toy` 调用服务端 OAuth 代理接口，响应是 `{code, message, data}` envelope。CLI 已剥掉 envelope，`--json` 直接打 `data`。HTTP 层与业务层分离：会话失效时业务 `code` 报错，而非靠 HTTP 401。
+
+## 关键错误
+
+### 会话失效（`code = 307001` / `307029`）：登录态已失效
+
+CLI 把这两类业务码识别为「会话无效」（`307001` 未授权 / `307029` OAuth 会话失效），清除本地登录态，并以「登录态已失效，请执行 `toy login`」结束。
+
+**处理**：
+
+```bash
+toy login
+```
+
+重新走 OAuth 后重试**原命令一次**。仍失败 → 停止，把错误返给用户，不要循环。
+
+`toy` 的会话靠 OAuth 重登。
+
+### `code = 0`：成功
+
+读操作 `--json` 时，`data` 是真正的业务对象，CLI 已剥掉 envelope，直接打 `data`。
+
+### `code != 0` 且非会话失效：业务错误
+
+CLI 报 `status=<n> code=<code> message=<message>`。直接把 `message` 给用户，不要自己解释；message 里通常已写明原因（参数非法、对象不存在、标题/slug 校验失败、密码长度不符等）。
+
+## 预览 / 提交闸门相关（非报错，但常被误当报错）
+
+| 现象 | 含义 | 处理 |
+|---|---|---|
+| `--json` 只返回 `{"preview_url": ...}` | 没加 `--yes`，仅生成预览、**未提交审核** | 把链接给用户确认，再用同参数 + `--yes` 重跑提交 |
+| `非交互环境需要加 --yes 才会上传并提交审核` | 非 TTY 且没 `--yes` | 这是预期闸门：先按预览-确认流程走，确认后才加 `--yes`，不要无脑绕过 |
+| `该操作会直接提交审核；非交互环境请加 --yes` | 纯改元信息（无包体）直接提交，缺 `--yes` | 先告知用户「即将提交审核」，确认后加 `--yes` |
+
+## 网络层错误
+
+| 现象 | 含义 | 处理 |
+|---|---|---|
+| 请求超时 | client 超时（普通请求 15s，上传 60s） | 确认网络；上传大包慢属正常，重试 |
+| 网络错误 / 连接失败 | DNS / TLS / 连接问题 | 确认网络，可能 VPN 没开 |
+| 响应不是合法 JSON | 被网关拦截 / 返了 HTML | 通常是认证失败但服务端没规范返回，先 `toy login` |
+
+## CLI 自身错误（cobra 层）
+
+| 现象 | 处理 |
+|---|---|
+| `unknown flag: --xxx` | 重跑 `toy <cmd> --help-json` 对齐 flag 名；`toy` 没有 `--env` |
+| `accepts N arg(s), received M` | `--help-json` 看 `args.{min,max,names}` |
+| `required flag(s) "xxx" not set` | `--help-json` 找 `flags[].required:true` |
+
+## 不要混淆
+
+- 会话失效不是 HTTP 401：HTTP 层由 envelope 包了，业务码 `307001`/`307029` 才是会话失效信号，匹配「登录态已失效」文案即可。
+- `toy` 的登录态是服务端 OAuth 会话，靠 `toy login` 重登；需要主动退登/切号用 `toy logout`。
+- `--json` 不带 `--yes` 时只出 `preview_url` 是**设计行为**，不是失败 —— 这是发布的预览闸门。
