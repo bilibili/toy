@@ -1,27 +1,26 @@
 ---
 name: toy
-description: "通过 Toy CLI 完成 B站 Toy 平台的创作者操作（发布 / 更新 / 预览 / 查询 / 排查）。触发词：Toy 发布、发布 Toy、toy create、上传 Toy、Toy 更新、toy update、改 Toy 封面、改 Toy 密码、Toy 预览、Toy 提交审核、我的 Toy、toy mylist、Toy 列表、Toy 统计、toy stats、Toy PV/UV、Toy 登录、toy login、Toy 发布记录、toy history、toy cli、Toy 白屏、Toy 404、Toy 页面打不开、Toy 资源路径、Toy slug。当用户需要把本地前端项目/HTML/zip 发布或更新到 Toy 平台、查看自己的 Toy、看访问统计、排查发布后页面白屏/资源 404，或管理本地发布记录时使用此 skill。"
+description: "通过 Toy CLI 完成 B站 Toy 平台的创作者操作（发布 / 更新 / 预览 / 查询 / 视频绑定 / 排查）。触发词：Toy 发布、发布 Toy、toy create、上传 Toy、Toy 更新、toy update、改 Toy 封面、改 Toy 密码、Toy 预览、Toy 提交审核、我的 Toy、toy mylist、Toy 列表、Toy 统计、toy stats、Toy PV/UV、Toy 登录、toy login、Toy 发布记录、toy history、toy cli、Toy 白屏、Toy 404、Toy 页面打不开、Toy 资源路径、Toy slug、Toy 绑定视频、绑视频、解绑视频、toy video、Toy 绑了哪些视频、视频页挂 Toy 入口、toy video mine。当用户需要把本地前端项目/HTML/zip 发布或更新到 Toy 平台、查看自己的 Toy、看访问统计、把视频与 Toy 绑定或解绑、排查发布后页面白屏/资源 404，或管理本地发布记录时使用此 skill。"
 license: MIT
 ---
 
 # toy: Toy 平台创作者 CLI
 
-通过 `toy` 二进制（cobra CLI，服务端 OAuth 登录）完成 Toy 平台的创作者侧操作：打包发布、更新、预览、查询。本 skill 不写命令矩阵 —— CLI 自描述足够，写死字段名只会与代码漂移。Skill 只承载工作流和铁律。
+通过 `toy` 二进制（cobra CLI，服务端 OAuth 登录）完成 Toy 平台的创作者侧操作：打包发布、更新、预览、查询、视频绑定。本 skill 不写命令矩阵 —— CLI 自描述足够，写死字段名只会与代码漂移。Skill 只承载工作流和铁律。
 
 ## 何时使用
 
-用户提到把本地项目/HTML/zip 发布到 toy、更新已有 Toy、看自己的 Toy 列表或访问统计、查发布记录等创作者场景。
+用户提到把本地项目/HTML/zip 发布到 toy、更新已有 Toy、看自己的 Toy 列表或访问统计、把视频与 Toy 绑定或解绑、查发布记录等创作者场景。
 
 不要用于：
 
-- Toy 平台**运营/后台**操作（版本审核、白名单、检索删除别人的 Toy、大盘统计）—— 这些不在创作者 `toy` 的能力范围内。
 - 老的脚本式发布链路 —— 本 skill 取代它，统一走官方 `toy` 二进制。
 
 ## 前置条件
 
 1. `toy` 已安装。检测 `command -v toy`，没装时引导安装（参见 `references/installation.md`）。
 2. 已登录。任意 API 命令首次跑可能报「登录态已失效，请执行 `toy login`」，按铁律 4 处理。
-3. `toy` 面向线上，没有环境切换选项（不暴露 `--env`），不要试图构造 `--env`。全局 flag 以 `--help-json` 实际输出为准。
+3. 全局 flag 以 `--help-json` 实际输出为准。
 
 ## 发现机制（关键）
 
@@ -35,13 +34,13 @@ toy --help-json
 
 JSON 字段语义：
 
-| 字段                | 用途                                                   |
-| ------------------- | ------------------------------------------------------ |
-| `commands[].path`   | 命令路径数组，如 `["create"]`、`["history","clear"]`   |
-| `commands[].args`   | 位置参数 `{min, max, names, variadic}`                 |
-| `commands[].flags`  | 本层 flag 列表，每条含 `type/default/choices/required` |
-| `commands[].writes` | true 表示业务写操作（如 `create`/`update`）            |
-| `global_flags`      | 全局 flag（如 `--json`）                               |
+| 字段 | 用途 |
+| --- | --- |
+| `commands[].path` | 命令路径数组，如 `["create"]`、`["history","clear"]` |
+| `commands[].args` | 位置参数 `{min, max, names, variadic}` |
+| `commands[].flags` | 本层 flag 列表，每条含 `type/default/choices/required` |
+| `commands[].writes` | true 表示业务写操作（如 `create`/`update`） |
+| `global_flags` | 全局 flag（如 `--json`） |
 
 ### 缺功能时尝试升级
 
@@ -94,6 +93,18 @@ toy login
 
 `history clear` 会删除**本机全部**发布记录（仅本地流水，不影响线上 Toy）。它带 `--yes` 跳过确认。AI 要执行时必须先 AskUserQuestion 确认，再加 `--yes`。其余只读命令（`mylist`/`stats`/`whoami`/`history` 查看）直接跑。
 
+### 6. 视频绑定是即时生效，不走预览/审核
+
+`video bind` / `video unbind` 改的是绑定关系（绑定后视频页挂上该 Toy 入口），**调用即生效**：无预览、不产出版本、不进审核、没有 `--yes`。别套铁律 2 的两段式。
+
+几条 `--help-json` 里读不出来的约束：
+
+- **一个视频只能绑一个 Toy**（反之一个 Toy 可绑多个）。撞上「该视频已绑定其他作品」时讲清冲突、让用户决定，**别自己去别的 Toy 上解绑**。
+- **重复绑定、解绑不存在的绑定都幂等**，不报错。不用先查后写。
+- `video mine` **只返回已过审稿件** —— 找不到某个视频先看它过审了没。
+- `bind`/`unbind` 的 `--json` 只回显你传的那个标识，另一个为空是设计行为。
+- 解绑非破坏性（可以再绑回来），不必按铁律 5 确认；但解绑用户没点名的绑定关系要先问。
+
 ## 典型工作流
 
 工作流只锚定**命令名 + 业务步骤**，具体参数 / flag / 取值都用 `--help-json` 取，避免与 CLI 漂移。
@@ -132,20 +143,33 @@ toy login
 
 清空记录用 `history clear`（破坏性，按铁律 5 确认后 `--yes`）。
 
+### E. 把视频绑定到 Toy
+
+绑定后视频页会挂上这个 Toy 的入口。只能拿自己的视频绑自己的 Toy，归属由服务端校验。
+
+1. **定 Toy**：用户没指明就跑 `mylist` 让用户确认是哪个。
+2. **定视频**：用户给了 BV 号直接用；没有就跑 `video mine` 列候选给用户选（只有已过审稿件会出现）。
+3. **看现状**（推荐）：`video list` 看这个 Toy 已绑了什么，顺带发现用户其实想换绑。
+4. **绑定**：`video bind` 提交，即时生效、无预览无审核。解绑走 `video unbind`。
+5. 撞上「该视频已绑定其他作品」→ 按铁律 6，讲清冲突让用户决定，别自己去解绑。
+
+脚本/JSON 务必显式传 Toy id（不传会进交互选择，AI 环境会失败）；各命令收 id 的入口形态不同，以 `--help-json` 为准。
+
 ## 错误处理优先级
 
 1. 登录态失效（「登录态已失效」/ 会话失效 code）→ `toy login`，重试一次，不循环。
 2. 业务错误（envelope `code != 0` 的 message）→ 直接把 message 给用户，不要二次解释。
 3. 非交互环境报「需要加 --yes」类提示 → 说明这是预览/提交闸门，按铁律 2 走预览-确认流程，不要无脑加 `--yes` 绕过。
-4. flag/参数错误（cobra 报 `unknown flag` / `accepts N arg(s)`）→ 重新跑 `--help-json` 对齐参数形态。`toy` 没有 `--env`，别构造它。
+4. flag/参数错误（cobra 报 `unknown flag` / `accepts N arg(s)`）→ 重新跑 `--help-json` 对齐参数形态。
 
 ## 不要做的事
 
 - 不要解析人类 help 文本（`toy -h` 给用户看，AI 用 `--help-json`）。
-- 不要凭记忆构造 flag（命令可能升级，每次都验）；`toy` 没有 `--env`，别构造它。
+- 不要凭记忆构造 flag（命令可能升级、也可能因构建渠道而不同，每次都验）。
 - 不要在用户看过预览并**明确确认**前给 `create`/`update` 加 `--yes`；也不要被动等用户开口，要按铁律 2 主动问一次「是否提交审核」。
 - 不要跳过内容预检就发包（绝对路径/根绝对跳转坑会让页面打开是坏的）；页内锚点 `href="#section"` 现已支持、不再报错，别再当成坑（见 `references/content-checklist.md` 第 2 节）。
 - 不要为改 slug 走「删除-重建」，除非用户明确要换地址（slug 发布后不可改，更新时保留）。
 - 不要默认创建/写入/维护 `toy.yaml`（本 skill 走官方 CLI 本地记录，`toy.yaml` 只做只读兼容）；也别把 `toy.yaml` 打进上传包。
 - 不要循环重试登录态失效；不要把 session token 写进任何输出。
 - 不要对 `history clear` 这类破坏性命令未经确认就加 `--yes`。
+- 不要为绑定视频擅自解绑用户其他 Toy 上的绑定。
