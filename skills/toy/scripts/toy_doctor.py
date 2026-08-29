@@ -27,6 +27,17 @@ SRCSET_RE = re.compile(r"""\bsrcset\s*=\s*(?P<quote>["'])(?P<value>[^"']+)(?P=qu
 CSS_URL_RE = re.compile(r"""url\(\s*(?P<quote>["']?)(?P<url>[^'")]+)(?P=quote)\s*\)""", re.I)
 TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
 
+# ZIP 包内文件类型白名单（服务端自动过滤不合规后缀，此处静态预检提前告警）
+_ALLOWED_EXTENSIONS: frozenset[str] = frozenset({
+    ".html", ".htm", ".css", ".js", ".json", ".wasm",
+    ".data", ".md", ".csv", ".tsv",
+    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico",
+    ".woff2", ".woff", ".ttf", ".eot",
+    ".mp3", ".wav", ".ogg", ".m4a",
+    ".mp4", ".webm",
+    ".nani", ".unityweb",
+})
+
 
 @dataclass
 class Finding:
@@ -190,6 +201,18 @@ def validate_index(pkg: StaticPackage, require_root: bool, reporter: Reporter) -
             reporter.error(".", "missing index.html at root or first-level folder")
 
 
+def validate_file_extensions(pkg: StaticPackage, reporter: Reporter) -> None:
+    """检查 ZIP/目录中是否有不在白名单内的文件后缀。"""
+    for rel in sorted(pkg.files):
+        ext = PurePosixPath(rel).suffix.lower()
+        if ext and ext not in _ALLOWED_EXTENSIONS:
+            reporter.warn(
+                rel,
+                f"unsupported file extension {ext}; will be filtered by server — "
+                "use a supported format or CDN external link instead",
+            )
+
+
 def validate_framework_source(pkg: StaticPackage, reporter: Reporter) -> None:
     if "package.json" in pkg.files and any(f.startswith(("src/", "app/", "pages/")) for f in pkg.files):
         reporter.warn(
@@ -346,6 +369,7 @@ def run_checks(args: argparse.Namespace) -> Reporter:
         if not reporter.has_errors:
             validate_index(pkg, args.require_root_index, reporter)
             validate_framework_source(pkg, reporter)
+            validate_file_extensions(pkg, reporter)
             for rel in pkg.html_files():
                 try:
                     check_html(pkg, rel, pkg.read_text(rel), reporter)

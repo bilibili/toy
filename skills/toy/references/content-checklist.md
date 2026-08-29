@@ -35,6 +35,15 @@
 - 框架项目**只传构建产物**（`dist` / `build`），不要传源码（`src/`、`package.json` 那一坨）。先 `npm run build`，确认产物里有 `index.html`。
 - 上传支持 `.zip` / `.html` / `.htm` / 文件夹（文件夹会自动打包）。
 - 别把 `.git`、`node_modules`、`__MACOSX`、`.DS_Store` 这类打进包里。
+- **ZIP 包内文件类型白名单**：出于安全考虑，只有白名单内后缀的文件会被发布，其余文件（如可执行文件、后端脚本）会被自动过滤掉。当前支持的后缀：
+  - 网页与脚本：`.html` `.htm` `.css` `.js` `.json` `.wasm`
+  - 数据：`.data` `.md` `.csv` `.tsv`
+  - 图片：`.png` `.jpg` `.jpeg` `.gif` `.svg` `.webp` `.ico`
+  - 字体：`.woff2` `.woff` `.ttf` `.eot`
+  - 音频：`.mp3` `.wav` `.ogg` `.m4a`
+  - 视频：`.mp4` `.webm`
+  - 其他：`.nani` `.unityweb`
+  如果页面依赖被过滤的文件，请改用上述支持的格式或走 CDN 外链。
 - 旧项目里的 `toy.yaml` 只作本地兼容线索读取，不是页面资源，别打进上传包（`toy_doctor.py` 已自动排除）。
 
 （官方 FAQ Q6/Q7/Q11。）
