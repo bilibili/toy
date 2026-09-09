@@ -68,7 +68,7 @@ AI 的正确姿势：
 铁律细节：
 
 - 非交互场景（AI 调用）下，`--json` 不带 `--yes` = 只预览不提交；带 `--yes` = 直接提交。**绝不在用户看过预览并明确确认前加 `--yes`**。给出预览后要主动问一次「是否提交审核」，而不是被动等用户开口——弱提示（「看完告诉我」）容易让用户以为已经在走审核。
-- 纯改标题/封面/可见性（`update` 不带 path）没有预览链接，是**直接提交审核**。这种也要先 AskUserQuestion 告知「即将提交审核：<改动摘要>」再加 `--yes`。
+- 纯改元信息（`update` 不带 path）没有预览链接，是**直接提交审核**。这种也要先 AskUserQuestion 告知「即将提交审核：<改动摘要>」再加 `--yes`。
 - `--visibility password` 必须配 `--access-password`（4-32 字符）；只传 `--access-password` 会按 password 档处理。具体取值/约束以 `--help-json` 的 `choices` 为准。
 
 ### 3. 带包体发布前先过内容自检
@@ -77,7 +77,9 @@ AI 的正确姿势：
 
 `create` / `update` 带 path 前，按 `references/content-checklist.md` 对 `<path>` 做内容预检：优先用清单里提供的自动化预检手段，跑不了再照清单 §1–§6 人肉过一遍高频坑（绝对路径、hash 路由 vs history 路由、构建产物 vs 源码、封面、slug 不可改）。有 ERROR 先给用户、修完再传，别硬传。
 
-详见 `references/content-checklist.md`（已用官方 FAQ 校准）。
+包里用了 **云存储 / 排行榜** SDK 能力时，再过一遍清单 §7 的调用节奏。这类和上面几条性质不同：**发布时一切正常，玩家一多才爆**（按 Toy 共享额度，超限 reject `307044`），预览页看不出来。只报 WARN，不阻断发布 —— 给用户提一句即可，别拿它卡流程。**阈值不对外公开且线上可调，不要向用户报具体数字，也不要建议写死数字做本地节流。**
+
+详见 `references/content-checklist.md`（§1–§6 已用官方 FAQ 校准或对着 CLI 源码核过，§7 与官方 SDK 文档「频率限制与最佳实践」同源）。
 
 ### 4. 登录态失效是「重新 login」
 
@@ -113,7 +115,7 @@ toy login
 
 1. 确认登录态（必要时 `toy login`）。
 2. **内容预检**：按铁律 3 对 `<path>` 做内容预检（参考 `references/content-checklist.md`），有 ERROR 先修。
-3. 跑 `create <path>`（带 `--json`，**不带 `--yes`**），`<path>` 可以是目录 / 单个 HTML / 现成 zip。可按需带 `--title`/`--slug`/`--poster`/`--visibility`（不传 title/slug 会从路径名推导）。
+3. 跑 `create <path>`（带 `--json`，**不带 `--yes`**），`<path>` 可以是目录 / 单个 HTML / 现成 zip。元信息 flag（名称、slug、封面、图标、分类、可见性等）**以 `create --help-json` 的当前输出为准**，别照记忆列 —— 这几项会随版本增删。不传名称 / slug 时会从路径名推导。
 4. 拿到 `preview_url`，原样给用户，请用户在浏览器检查。
 5. **按铁律 2 主动发起显式确认**（摆出改动摘要、请用户明确回「提交」），拿到肯定答复后再 **同参数 + `--yes`** 重跑，提交审核。
 6. 解析返回的 `id`/`status` 给用户。
@@ -122,7 +124,7 @@ toy login
 
 1. 需要先知道 id：跑 `mylist`（带 `--json`）列出我的 Toy，从中选出目标 `id`。
 2. 带包体更新：先按铁律 3 对 `<path>` 做内容预检，再 `update <id> <path>`（不带 `--yes`）→ 拿 `preview_url` → **按铁律 2 主动发起显式确认** → 拿到肯定答复后同参数 + `--yes` 提交。**保留原 slug，别为改地址走删除-重建**（slug 发布后不可改）。
-3. 只改元信息（标题/封面/可见性/密码）：`update <id> --title ...`（无预览链接，直接提交），按铁律 2 先告知再加 `--yes`。
+3. 只改元信息（不带 path，无预览链接、直接提交）：可改哪些项看 `update --help-json`，按铁律 2 先告知再加 `--yes`。
 4. 改密码档：`--visibility password --access-password ...`；给现有密码档改密只传 `--access-password`。具体看 `--help-json`。
 
 ### C. 查看我的 Toy 与统计
@@ -148,7 +150,7 @@ toy login
 绑定后视频页会挂上这个 Toy 的入口。只能拿自己的视频绑自己的 Toy，归属由服务端校验。
 
 1. **定 Toy**：用户没指明就跑 `mylist` 让用户确认是哪个。
-2. **定视频**：用户给了 BV 号直接用；没有就跑 `video mine` 列候选给用户选（只有已过审稿件会出现）。
+2. **定视频**：用户给了视频标识直接用（BV 号或 av 号都收，纯数字按 av 号走）；没有就跑 `video mine` 列候选给用户选（只有已过审稿件会出现）。
 3. **看现状**（推荐）：`video list` 看这个 Toy 已绑了什么，顺带发现用户其实想换绑。
 4. **绑定**：`video bind` 提交，即时生效、无预览无审核。解绑走 `video unbind`。
 5. 撞上「该视频已绑定其他作品」→ 按铁律 6，讲清冲突让用户决定，别自己去解绑。

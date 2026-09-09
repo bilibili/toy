@@ -19,6 +19,12 @@ JPG_SOI = b"\xff\xd8"
 COVER_RATIO = 4 / 3
 COVER_RATIO_TOLERANCE = 0.08
 
+# 与 toy CLI 的 slug 校验同源，**不要在这里收紧**：本地比服务端严会把合法 slug
+# 报成 ERROR，按铁律 3 直接拦住一个本来能发的包。下划线合法，首字符无限制
+# （曾误加过 `[A-Za-z0-9]` 开头约束）。以 CLI 的报错为准，别照直觉猜。
+SLUG_RE = r"[A-Za-z0-9_-]+"
+MAX_SLUG_BYTES = 64
+
 ATTR_RE = re.compile(
     r"""(?P<attr>\b(?:src|href|poster|data)\s*=\s*)(?P<quote>["'])(?P<url>[^"']+)(?P=quote)""",
     re.I,
@@ -26,6 +32,46 @@ ATTR_RE = re.compile(
 SRCSET_RE = re.compile(r"""\bsrcset\s*=\s*(?P<quote>["'])(?P<value>[^"']+)(?P=quote)""", re.I)
 CSS_URL_RE = re.compile(r"""url\(\s*(?P<quote>["']?)(?P<url>[^'")]+)(?P=quote)\s*\)""", re.I)
 TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
+SCRIPT_RE = re.compile(r"<script\b[^>]*>(.*?)</script>", re.I | re.S)
+
+# 频率限制（云存储 / 排行榜按 Toy 共享额度，超限 reject 307044）静态启发式。
+# 只报 WARN：限流不会让页面打不开，且下面全是正则近似，压缩产物里必然有误判。
+# 有意不写具体阈值——线上值可热更新且不对外公开，这里只查调用形态。
+RATE_LIMITED_METHODS = (
+    "getCloudStorage",
+    "setCloudStorage",
+    "removeCloudStorage",
+    "submitScore",
+    "getRankList",
+    "getMyRank",
+)
+# 方法名是属性访问，压缩后仍保留，所以能命中构建产物。
+RATE_LIMITED_CALL_RE = re.compile(
+    r"\.\s*(?P<method>" + "|".join(RATE_LIMITED_METHODS) + r")\s*\(",
+)
+RATE_LIMIT_ERROR_CODE = "307044"
+# 「谁包着这个调用」靠反向括号配平找外层 opener，而不是拿固定字符窗口回看——
+# 压缩后一行可能极长，平窗口会越过已闭合的块，把隔壁 setInterval 算到自己头上。
+ENCLOSER_LOOKBEHIND = 200
+MAX_ENCLOSERS = 6
+# 每条都锚在 prefix 末尾：construct 头部与 opener 之间只允许回调样板
+# （`async () => `、`(k) => ` 之类），不允许跨过 `;` / `{` / `}` 语句边界。
+_TAIL = r"[^;{}]*[{(]?\s*$"
+POLL_RE = re.compile(r"\bsetInterval\s*\(" + _TAIL)
+LOOP_RE = re.compile(
+    r"\b(?:for|while)\s*\([^{}]*\)\s*[{(]?\s*$"
+    r"|\.\s*(?:forEach|map)\s*\(" + _TAIL,
+)
+HIGH_FREQ_RE = re.compile(
+    r"\brequestAnimationFrame\s*\(" + _TAIL
+    + r"""|["'](?:mousemove|pointermove|touchmove|scroll|wheel|drag|keydown|keypress)["']"""
+    + _TAIL,
+)
+# `for(...)await x.setCloudStorage(...)`：循环头后直接跟调用，中间只允许
+# 一个 await 和标识符链，不允许语句边界，避免顺着无关代码一路匹配。
+BRACELESS_LOOP_RE = re.compile(
+    r"\b(?:for|while)\s*\([^{}]*\)\s*(?:await\s+)?[\w$.\[\]]*$",
+)
 
 
 @dataclass
@@ -127,6 +173,11 @@ class StaticPackage:
     def css_files(self) -> list[str]:
         return sorted(f for f in self.files if f.lower().endswith(".css"))
 
+    def js_files(self) -> list[str]:
+        # 只用于频率限制检查：构建产物里 SDK 调用都在这里，HTML 扫不到。
+        # 不对 JS 跑资源引用检查——压缩后的字符串字面量会大量误判。
+        return sorted(f for f in self.files if f.lower().endswith((".js", ".mjs")))
+
 
 def clean_zip_name(name: str) -> str:
     name = name.replace("\\", "/")
@@ -159,10 +210,19 @@ def parse_args() -> argparse.Namespace:
 
 
 def validate_slug(slug: str | None, reporter: Reporter) -> None:
+    """Mirror the CLI's slug rule exactly; anything stricter blocks valid input.
+
+    ERROR here stops the publish, so a local rule tighter than the server's turns
+    a publishable package into a hard failure. Underscores are legal and there is
+    no first-character restriction. Style preferences stay WARN.
+    """
     if not slug:
         return
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*", slug):
-        reporter.error("slug", "slug must contain only letters, numbers, and hyphens, and start with a letter or number")
+    if not re.fullmatch(SLUG_RE, slug):
+        reporter.error("slug", "slug must match [A-Za-z0-9_-]")
+    # 上限按字节而非字符数，与服务端口径一致。
+    if len(slug.encode("utf-8")) > MAX_SLUG_BYTES:
+        reporter.error("slug", f"slug must be at most {MAX_SLUG_BYTES} bytes")
     if slug.lower() != slug:
         reporter.warn("slug", "lowercase hyphen-case is preferred for shareable Toy URLs")
 
@@ -276,6 +336,85 @@ def check_css(pkg: StaticPackage, rel: str, text: str, reporter: Reporter) -> No
         check_local_ref(pkg, rel, match.group("url"), reporter)
 
 
+def enclosing_prefixes(text: str, pos: int) -> list[str]:
+    """Text right before each unclosed `(`/`{` that still encloses `pos`.
+
+    Walks backward keeping a paren/brace balance so an already-closed block does
+    not get credited with enclosing the call. String and comment contents are not
+    parsed, so this stays a heuristic.
+    """
+    prefixes: list[str] = []
+    depth = 0
+    i = pos - 1
+    while i >= 0 and len(prefixes) < MAX_ENCLOSERS:
+        char = text[i]
+        if char in ")}]":
+            depth += 1
+        elif char in "({[":
+            if depth == 0:
+                prefixes.append(text[max(0, i - ENCLOSER_LOOKBEHIND):i + 1])
+            else:
+                depth -= 1
+        i -= 1
+    return prefixes
+
+
+def check_rate_limits(rel: str, text: str, reporter: Reporter) -> bool:
+    """Flag call shapes that burn a Toy's shared cloud-storage/leaderboard quota.
+
+    Returns whether any rate-limited SDK call was seen at all, so the caller can
+    decide if the package needs 307044 handling.
+    """
+    calls = list(RATE_LIMITED_CALL_RE.finditer(text))
+    if not calls:
+        return False
+
+    seen: set[tuple[str, str]] = set()
+    for match in calls:
+        method = match.group("method")
+        prefixes = enclosing_prefixes(text, match.start())
+        # 无花括号的单语句循环体（压缩产物常见：`for(...)await x.setCloudStorage(...)`）
+        # 没有未闭合的 opener，配平找不到它，用紧邻调用点的一小段单独判。
+        # 这段不并进 prefixes——平窗口喂给 poll / 高频式会把隔壁已闭合的块算进来。
+        immediate = text[max(0, match.start() - ENCLOSER_LOOKBEHIND):match.start()]
+        braceless_loop = bool(BRACELESS_LOOP_RE.search(immediate))
+
+        for label, hit, hint in (
+            (
+                "poll",
+                any(POLL_RE.search(p) for p in prefixes),
+                "polling burns the quota even when nothing changed; cache the result and refresh on user action",
+            ),
+            (
+                "loop",
+                braceless_loop or any(LOOP_RE.search(p) for p in prefixes),
+                "pass multiple keys to one call instead of looping per key",
+            ),
+            (
+                "high-frequency handler",
+                any(HIGH_FREQ_RE.search(p) for p in prefixes),
+                "keep state in memory and persist only at checkpoints such as settle, level end, or page hide",
+            ),
+        ):
+            if hit and (method, label) not in seen:
+                seen.add((method, label))
+                reporter.warn(
+                    rel,
+                    f"{method} appears inside a {label}; {hint} "
+                    f"(cloud storage and leaderboard quota is shared by all players of one Toy)",
+                )
+    return True
+
+
+def check_rate_limit_handling(uses_rate_limited: bool, handles_error: bool, reporter: Reporter) -> None:
+    if uses_rate_limited and not handles_error:
+        reporter.warn(
+            ".",
+            f"cloud storage or leaderboard calls found but no reference to rate-limit code {RATE_LIMIT_ERROR_CODE}; "
+            "on reject, tell the code apart from other errors and retry with backoff instead of retrying immediately",
+        )
+
+
 def image_dimensions(path: Path) -> tuple[int, int] | None:
     data = path.read_bytes()
     if len(data) >= 24 and data.startswith(PNG_SIGNATURE):
@@ -346,9 +485,17 @@ def run_checks(args: argparse.Namespace) -> Reporter:
         if not reporter.has_errors:
             validate_index(pkg, args.require_root_index, reporter)
             validate_framework_source(pkg, reporter)
+            uses_rate_limited = False
+            handles_rate_limit_error = False
             for rel in pkg.html_files():
                 try:
-                    check_html(pkg, rel, pkg.read_text(rel), reporter)
+                    text = pkg.read_text(rel)
+                    check_html(pkg, rel, text, reporter)
+                    # 内联 <script> 里的 SDK 调用：单文件 Toy 全在这里。
+                    for script in SCRIPT_RE.finditer(text):
+                        body = script.group(1)
+                        uses_rate_limited |= check_rate_limits(rel, body, reporter)
+                        handles_rate_limit_error |= RATE_LIMIT_ERROR_CODE in body
                 except Exception as exc:  # noqa: BLE001
                     reporter.error(rel, f"failed to inspect HTML: {exc}")
             for rel in pkg.css_files():
@@ -356,6 +503,14 @@ def run_checks(args: argparse.Namespace) -> Reporter:
                     check_css(pkg, rel, pkg.read_text(rel), reporter)
                 except Exception as exc:  # noqa: BLE001
                     reporter.error(rel, f"failed to inspect CSS: {exc}")
+            for rel in pkg.js_files():
+                try:
+                    text = pkg.read_text(rel)
+                    uses_rate_limited |= check_rate_limits(rel, text, reporter)
+                    handles_rate_limit_error |= RATE_LIMIT_ERROR_CODE in text
+                except Exception as exc:  # noqa: BLE001
+                    reporter.warn(rel, f"failed to inspect JavaScript: {exc}")
+            check_rate_limit_handling(uses_rate_limited, handles_rate_limit_error, reporter)
     finally:
         pkg.close()
     return reporter
