@@ -415,6 +415,36 @@ def check_rate_limit_handling(uses_rate_limited: bool, handles_error: bool, repo
         )
 
 
+def check_contenthash(pkg: "StaticPackage", reporter: Reporter) -> None:
+    """建议产物文件名带内容指纹，使更新时未变资源可被复用。
+
+    纯建议：不带指纹照样能发、能访问，只是每次更新都让访客重新下载全部资源。
+    只报一条 WARN（不按文件逐条刷），资源太少的包直接跳过——单文件 Toy、
+    小 demo 本来就没什么可复用的，提示只会变噪音。
+    """
+    assets = [
+        rel
+        for rel in pkg.js_files() + pkg.css_files()
+        if not rel.lower().endswith((".min.js", ".min.css"))
+    ]
+    # 少于 2 个资源时更新也几乎不重传，不值得提示。
+    if len(assets) < 2:
+        return
+    # 指纹判据：文件名里出现「分隔符 + 含数字或 _- 的字母数字串」。
+    # 要求必须含数字或分隔符，是为了把 components.js、application.css
+    # 这类纯单词名排除掉，只认 index-Ct-l33m_.js / app.a1b2c3.js 这种。
+    fingerprint = re.compile(r"[-._][A-Za-z0-9_-]*[0-9_-][A-Za-z0-9_-]*\.(?:js|css)$")
+    if any(fingerprint.search(PurePosixPath(rel).name) for rel in assets):
+        return
+    reporter.warn(
+        ".",
+        f"{len(assets)} 个 JS/CSS 产物的文件名都不含内容指纹（形如 assets/index-Ct-l33m_.js）；"
+        "每次更新访客都要重新下载全部资源。多数构建工具默认已开启："
+        "Vite 开箱即用，webpack 配 output.filename '[name].[contenthash].js'。"
+        "仅为建议，不影响本次发布",
+    )
+
+
 def image_dimensions(path: Path) -> tuple[int, int] | None:
     data = path.read_bytes()
     if len(data) >= 24 and data.startswith(PNG_SIGNATURE):
@@ -511,6 +541,7 @@ def run_checks(args: argparse.Namespace) -> Reporter:
                 except Exception as exc:  # noqa: BLE001
                     reporter.warn(rel, f"failed to inspect JavaScript: {exc}")
             check_rate_limit_handling(uses_rate_limited, handles_rate_limit_error, reporter)
+            check_contenthash(pkg, reporter)
     finally:
         pkg.close()
     return reporter
