@@ -31,6 +31,11 @@ ATTR_RE = re.compile(
 )
 SRCSET_RE = re.compile(r"""\bsrcset\s*=\s*(?P<quote>["'])(?P<value>[^"']+)(?P=quote)""", re.I)
 CSS_URL_RE = re.compile(r"""url\(\s*(?P<quote>["']?)(?P<url>[^'")]+)(?P=quote)\s*\)""", re.I)
+# HTML 里 CSS 只在这两处。`url()` 是 CSS 语法，但这条正则带 re.I，拿去扫整份 HTML 会把
+# JS 的 `new URL(x)` 当成资源引用：实测两个真实单文件档共报出 37 条假 ERROR（`URL(e)`、
+# `URL(row.avatar)`），而 ERROR 会让退出码变 1，按铁律 3 挡下一个其实能发的包。
+STYLE_BLOCK_RE = re.compile(r"<style\b[^>]*>(.*?)</style>", re.I | re.S)
+STYLE_ATTR_RE = re.compile(r"""\bstyle\s*=\s*(["'])(.*?)\1""", re.I | re.S)
 TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
 SCRIPT_RE = re.compile(r"<script\b[^>]*>(.*?)</script>", re.I | re.S)
 
@@ -272,6 +277,13 @@ def is_ignored_url(url: str) -> bool:
     )
 
 
+# 资源路径长度上界。包内文件名来自文件系统 / zip，不可能有这个量级，所以更长的
+# 「路径」只能是误命中：ATTR_RE 的 `data=` 会撞上 JS 里的 const DATA="<base64>"，
+# 一条命中吞掉整份文档（实测 17MB 单文件档报出 36MB 报告、内容整段进 stdout）。
+# 这类既报不出真问题，又把包内容写进报告，直接不当资源引用看。
+MAX_REF_LEN = 512
+
+
 def clean_ref(url: str) -> str:
     url = url.strip()
     url = url.split("#", 1)[0].split("?", 1)[0]
@@ -288,6 +300,8 @@ def resolve_ref(from_file: str, url: str) -> str:
 
 def check_local_ref(pkg: StaticPackage, from_file: str, url: str, reporter: Reporter) -> None:
     if is_ignored_url(url):
+        return
+    if len(url) > MAX_REF_LEN:
         return
     if url.startswith("/"):
         reporter.error(from_file, f"root-relative local resource is unsafe under /toy/<slug>/: {url}")
@@ -327,8 +341,11 @@ def check_html(pkg: StaticPackage, rel: str, text: str, reporter: Reporter) -> N
             url = candidate.strip().split(" ", 1)[0]
             check_local_ref(pkg, rel, url, reporter)
 
-    for match in CSS_URL_RE.finditer(text):
-        check_local_ref(pkg, rel, match.group("url"), reporter)
+    # 只在 CSS 出现的地方找 url()，别扫整份 HTML（理由见 STYLE_BLOCK_RE）。
+    for pattern, group in ((STYLE_BLOCK_RE, 1), (STYLE_ATTR_RE, 2)):
+        for fragment in pattern.finditer(text):
+            for match in CSS_URL_RE.finditer(fragment.group(group)):
+                check_local_ref(pkg, rel, match.group("url"), reporter)
 
 
 def check_css(pkg: StaticPackage, rel: str, text: str, reporter: Reporter) -> None:
