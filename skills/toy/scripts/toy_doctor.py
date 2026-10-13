@@ -39,9 +39,9 @@ STYLE_ATTR_RE = re.compile(r"""\bstyle\s*=\s*(["'])(.*?)\1""", re.I | re.S)
 TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
 SCRIPT_RE = re.compile(r"<script\b[^>]*>(.*?)</script>", re.I | re.S)
 
-# 入口 index.html 解压后体积硬上限：提交侧（create/update/preview，含 CLI OAuth 路由）
-# 会解压入口这一个文件量体积，超限直接拒收（307000）。所以这条是 ERROR 而不是下面那条
-# 体验 WARN —— 包传上去必定失败。阈值在服务端配置、可热调整，这里取当前线上值。
+# 入口 index.html 解压后体积上限：create / update / preview 提交时都会按这条拒收
+# （307000）。所以这条是 ERROR 而不是下面那条体验 WARN —— 包传上去必定失败。
+# 平台侧上限有可能调整，报错文案里的数字才是当时的准。
 MAX_INDEX_HTML_BYTES = 1024 * 1024
 # 大文档：此量级起，整份文档的下载时间开始主导首屏，且文档无法被缓存。
 # 只报 WARN —— 包能发、审核能过，纯体验问题；且「文档小」推不出「加载快」。
@@ -71,7 +71,7 @@ BLOCK_LABEL_MAX = 64
 
 # 频率限制（云存储 / 排行榜按 Toy 共享额度，超限 reject 307044）静态启发式。
 # 只报 WARN：限流不会让页面打不开，且下面全是正则近似，压缩产物里必然有误判。
-# 有意不写具体阈值——线上值可热更新且不对外公开，这里只查调用形态。
+# 有意不写具体阈值——阈值不对外公开且可能调整，这里只查调用形态。
 RATE_LIMITED_METHODS = (
     "getCloudStorage",
     "setCloudStorage",
@@ -310,7 +310,7 @@ def index_candidates(pkg: StaticPackage) -> tuple[str | None, list[str]]:
 
 
 def entry_index(pkg: StaticPackage) -> str | None:
-    """服务端会当作入口的那个 index.html：包根优先，否则唯一的一级子目录下那个。
+    """发布时会被当作入口的那个 index.html：包根优先，否则唯一的一级子目录下那个。
 
     多个一级 index.html 时入口有歧义（validate_index 已报 ERROR），这里不猜。
     """
@@ -437,12 +437,12 @@ def payload_detail(pkg: StaticPackage, rel: str, size: int) -> str:
 
 
 def check_index_html_limit(pkg: StaticPackage, reporter: Reporter) -> str | None:
-    """ERROR on an entry index.html over the server's decompressed-size limit.
+    """ERROR on an entry index.html over the platform's decompressed-size limit.
 
     Returns the offending path so the size WARN below is not repeated on it.
 
-    只量入口这一个文件 —— 服务端也只量它，别的 HTML 多大都不在这条限制里。量的是
-    解压后体积（ZIP 里取 file_size），因为服务端解压后才判。
+    只管入口这一个文件 —— 平台也只按它判，别的 HTML 多大都不在这条限制里。算的是
+    解压后体积（ZIP 里取 file_size），压缩比再高也绕不过。
     """
     rel = entry_index(pkg)
     if rel is None:
@@ -455,7 +455,7 @@ def check_index_html_limit(pkg: StaticPackage, reporter: Reporter) -> str | None
         # 带上原始字节数：贴着线的包（1048577 字节）四舍五入也显示 1.00 MB，
         # 只报 MB 会让人以为 doctor 算错了。
         f"entry index.html is {size / 1048576:.2f} MB ({size} bytes) decompressed, over "
-        f"the server's {MAX_INDEX_HTML_BYTES / 1048576:.0f} MB limit"
+        f"the {MAX_INDEX_HTML_BYTES / 1048576:.0f} MB limit"
         f"{payload_detail(pkg, rel, size)}. "
         "create/update/preview all reject the package (307000), so this blocks publishing. "
         "See content-checklist section 8 for the per-tool fix; never rewrite or move the "
