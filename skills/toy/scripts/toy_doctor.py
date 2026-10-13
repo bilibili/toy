@@ -39,8 +39,13 @@ STYLE_ATTR_RE = re.compile(r"""\bstyle\s*=\s*(["'])(.*?)\1""", re.I | re.S)
 TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
 SCRIPT_RE = re.compile(r"<script\b[^>]*>(.*?)</script>", re.I | re.S)
 
+# 入口 index.html 解压后体积硬上限：提交侧（create/update/preview，含 CLI OAuth 路由）
+# 会解压入口这一个文件量体积，超限直接拒收（307000）。所以这条是 ERROR 而不是下面那条
+# 体验 WARN —— 包传上去必定失败。阈值在服务端配置、可热调整，这里取当前线上值。
+MAX_INDEX_HTML_BYTES = 1024 * 1024
 # 大文档：此量级起，整份文档的下载时间开始主导首屏，且文档无法被缓存。
 # 只报 WARN —— 包能发、审核能过，纯体验问题；且「文档小」推不出「加载快」。
+# 入口 index.html 有上面那条硬上限兜着，这条实际只对非入口文档生效。
 LARGE_DOC_BYTES = 12 * 1024 * 1024
 # 内联 payload 有两种装法，都得量：
 #   ① 块体里 —— <script type="application/json">…</script>，一块就几十 MB；
@@ -291,12 +296,32 @@ def validate_slug(slug: str | None, reporter: Reporter) -> None:
         reporter.warn("slug", "lowercase hyphen-case is preferred for shareable Toy URLs")
 
 
-def validate_index(pkg: StaticPackage, require_root: bool, reporter: Reporter) -> None:
-    root_index = "index.html" in {f.lower(): f for f in pkg.files}
-    first_level = [
+def index_candidates(pkg: StaticPackage) -> tuple[str | None, list[str]]:
+    """包根 index.html 与一级子目录下的 index.html —— 入口判定的唯一口径。
+
+    入口相关的检查共用这一份判定，免得「哪个是入口」在各处漂移。
+    """
+    root = next((f for f in pkg.files if f.lower() == "index.html"), None)
+    first_level = sorted(
         f for f in pkg.files
         if f.lower().endswith("/index.html") and len(PurePosixPath(f).parts) == 2
-    ]
+    )
+    return root, first_level
+
+
+def entry_index(pkg: StaticPackage) -> str | None:
+    """服务端会当作入口的那个 index.html：包根优先，否则唯一的一级子目录下那个。
+
+    多个一级 index.html 时入口有歧义（validate_index 已报 ERROR），这里不猜。
+    """
+    root_index, first_level = index_candidates(pkg)
+    if root_index:
+        return root_index
+    return first_level[0] if len(first_level) == 1 else None
+
+
+def validate_index(pkg: StaticPackage, require_root: bool, reporter: Reporter) -> None:
+    root_index, first_level = index_candidates(pkg)
 
     if require_root and not root_index:
         if first_level:
@@ -377,21 +402,17 @@ def scan_document(data: bytes) -> DocComposition:
     return comp
 
 
-def check_large_document(pkg: StaticPackage, rel: str, reporter: Reporter) -> None:
-    """WARN on an oversized HTML document, naming the form the payload takes.
+def payload_detail(pkg: StaticPackage, rel: str, size: int) -> str:
+    """定位内联 payload 的形态，供体积相关的报告共用（两种形态处方不同，见清单 §8）。
 
-    The size gate is O(1), so the scan only runs for documents already over the line.
+    定位失败返回空串 —— 体积那条结论本身不依赖它。调用方已确认 size > 0。
     """
-    size = pkg.size_of(rel)
-    if size < LARGE_DOC_BYTES:
-        return
     try:
         comp = scan_document(pkg.read_bytes(rel))
     except Exception:  # noqa: BLE001 — 定位失败不影响体积这条结论
         comp = DocComposition()
     # 哪种形态占主导，按两个桶的**总量**比（同一口径）；报的时候属性桶报聚合、块体桶报
     # 最大那一块（打包器切成上千块，逐块看谁都不显眼；单个巨块则那一块就是全部）。
-    detail = ""
     dominant = comp.dominant_attr()
     attr_total = dominant[1][0] if dominant else 0
     if dominant and attr_total >= comp.body_bytes and attr_total / size >= MIN_DETAIL_SHARE:
@@ -404,20 +425,59 @@ def check_large_document(pkg: StaticPackage, rel: str, reporter: Reporter) -> No
         else:
             noun = "value" if count == 1 else "values"
             what = f'{count} oversized <{tag} {attr}="..."> {noun} starting at line {line}'
-        detail = f"; {total / size:.1%} of it is {what}"
-    elif comp.largest_body and comp.largest_body.size / size >= MIN_DETAIL_SHARE:
+        return f"; {total / size:.1%} of it is {what}"
+    if comp.largest_body and comp.largest_body.size / size >= MIN_DETAIL_SHARE:
         hit = comp.largest_body
         label = f" {hit.label}" if hit.label else ""
-        detail = (
+        return (
             f"; {hit.size / size:.1%} of it is one inline <{hit.tag}>{label} "
             f"starting at line {hit.line}"
         )
+    return ""
+
+
+def check_index_html_limit(pkg: StaticPackage, reporter: Reporter) -> str | None:
+    """ERROR on an entry index.html over the server's decompressed-size limit.
+
+    Returns the offending path so the size WARN below is not repeated on it.
+
+    只量入口这一个文件 —— 服务端也只量它，别的 HTML 多大都不在这条限制里。量的是
+    解压后体积（ZIP 里取 file_size），因为服务端解压后才判。
+    """
+    rel = entry_index(pkg)
+    if rel is None:
+        return None
+    size = pkg.size_of(rel)
+    if size <= MAX_INDEX_HTML_BYTES:
+        return None
+    reporter.error(
+        rel,
+        # 带上原始字节数：贴着线的包（1048577 字节）四舍五入也显示 1.00 MB，
+        # 只报 MB 会让人以为 doctor 算错了。
+        f"entry index.html is {size / 1048576:.2f} MB ({size} bytes) decompressed, over "
+        f"the server's {MAX_INDEX_HTML_BYTES / 1048576:.0f} MB limit"
+        f"{payload_detail(pkg, rel, size)}. "
+        "create/update/preview all reject the package (307000), so this blocks publishing. "
+        "See content-checklist section 8 for the per-tool fix; never rewrite or move the "
+        "inline payload by hand.",
+    )
+    return rel
+
+
+def check_large_document(pkg: StaticPackage, rel: str, reporter: Reporter) -> None:
+    """WARN on an oversized HTML document, naming the form the payload takes.
+
+    The size gate is O(1), so the scan only runs for documents already over the line.
+    """
+    size = pkg.size_of(rel)
+    if size < LARGE_DOC_BYTES:
+        return
     reporter.warn(
         rel,
-        f"HTML document is {size / 1048576:.1f} MB{detail}. A document this size is "
-        "downloaded in full before anything renders and cannot be cached, so every "
-        "visit pays for it. See content-checklist section 8 for the per-tool fix; "
-        "never rewrite or move the inline payload by hand.",
+        f"HTML document is {size / 1048576:.1f} MB{payload_detail(pkg, rel, size)}. "
+        "A document this size is downloaded in full before anything renders and cannot "
+        "be cached, so every visit pays for it. See content-checklist section 8 for the "
+        "per-tool fix; never rewrite or move the inline payload by hand.",
     )
 
 
@@ -698,12 +758,15 @@ def run_checks(args: argparse.Namespace) -> Reporter:
         if not reporter.has_errors:
             validate_index(pkg, args.require_root_index, reporter)
             validate_framework_source(pkg, reporter)
+            # 入口超限已是 ERROR 且带形态定位，同一文件不再追一条体验 WARN。
+            oversized_index = check_index_html_limit(pkg, reporter)
             uses_rate_limited = False
             handles_rate_limit_error = False
             for rel in pkg.html_files():
                 try:
                     # 体积闸门是 O(1)，绝大多数包到这里就返回了，不会读文件。
-                    check_large_document(pkg, rel, reporter)
+                    if rel != oversized_index:
+                        check_large_document(pkg, rel, reporter)
                     text = pkg.read_text(rel)
                     check_html(pkg, rel, text, reporter)
                     # 内联 <script> 里的 SDK 调用：单文件 Toy 全在这里。
