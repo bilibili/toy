@@ -79,6 +79,19 @@ if (has('--help-json')) {
   process.exit(0)
 }
 
+if (argv[0] === 'version') {
+  process.stdout.write(`toy ${process.env.FAKE_TOY_VERSION ?? 'v0.6.4'} (commit fake, built fake)\n`)
+  process.exit(0)
+}
+if (argv[0] === 'upgrade') {
+  const latest = process.env.FAKE_TOY_UPGRADE_LATEST ?? 'v0.6.4'
+  if (has('--check')) {
+    process.stdout.write(`当前版本：v0.6.4\n最新版本：${latest}\n${latest === 'v0.6.4' ? '✓ 已是最新版本\n' : ''}`)
+  } else {
+    process.stdout.write('✓ 升级完成\n')
+  }
+  process.exit(0)
+}
 if (argv[0] === 'whoami') {
   process.stdout.write(`${JSON.stringify({ uid: 1, name: 'tester' })}\n`)
   process.exit(0)

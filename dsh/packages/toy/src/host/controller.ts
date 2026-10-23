@@ -15,6 +15,8 @@ import type { ToyService } from './service-api.ts'
 import type {
   AccountView,
   ActionResult,
+  CliUpdateView,
+  CliUpgradeResult,
   HistoryClearTicket,
   HistoryRecord,
   PublishInput,
@@ -52,6 +54,18 @@ export class ToyController extends TypertRemoteService {
   @Remote('account')
   async account(): Promise<AccountView> {
     return await this.service.account()
+  }
+
+  /** `toy upgrade --check`; the page shows the result and asks before upgrading. */
+  @Remote('cliUpdateCheck')
+  async cliUpdateCheck(): Promise<CliUpdateView> {
+    return await this.service.cliUpdateCheck()
+  }
+
+  /** Replace the host's toy binary; the page has already confirmed. */
+  @Remote('upgradeCli')
+  async upgradeCli(): Promise<CliUpgradeResult> {
+    return await this.service.upgradeCli()
   }
 
   /** Start the Host-side browser OAuth flow; resolves when the CLI returns. */

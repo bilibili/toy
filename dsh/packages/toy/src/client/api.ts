@@ -42,6 +42,8 @@ export interface ToyNamespace {
   history(path: string): Promise<unknown>
   prepareHistoryClear(): Promise<unknown>
   clearHistory(token: string): Promise<unknown>
+  cliUpdateCheck(): Promise<unknown>
+  upgradeCli(): Promise<unknown>
   skillStatus(): Promise<unknown>
   installSkill(): Promise<unknown>
   historyPaths(): Promise<unknown>

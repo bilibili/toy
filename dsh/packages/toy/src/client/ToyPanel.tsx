@@ -21,8 +21,15 @@ import type { PublishPrefill } from './PublishView.tsx'
 import { StatsView } from './StatsView.tsx'
 import { useToyStyles } from './styles.ts'
 import { ToysView } from './ToysView.tsx'
-import { Badge, Banner, Button, FailureBanner, Icon, Loading } from './ui.tsx'
-import type { AccountView, HistoryRecord, ToyListPage, ToySummary } from '../shared/types.ts'
+import { Badge, Banner, Button, Dialog, FailureBanner, Icon, Loading } from './ui.tsx'
+import type {
+  AccountView,
+  CliUpdateView,
+  CliUpgradeResult,
+  HistoryRecord,
+  ToyListPage,
+  ToySummary,
+} from '../shared/types.ts'
 
 type Tab = 'toys' | 'stats' | 'publish' | 'history'
 
@@ -45,6 +52,12 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   const [prefill, setPrefill] = useState<PublishPrefill | undefined>(undefined)
   const [note, setNote] = useState<string | undefined>(undefined)
   const [copiedKey, setCopiedKey] = useState<string | undefined>(undefined)
+  const [cliBusy, setCliBusy] = useState(false)
+  const [cliNote, setCliNote] = useState<string | undefined>(undefined)
+  const [cliError, setCliError] = useState<Failure | undefined>(undefined)
+  const [cliUpdate, setCliUpdate] = useState<CliUpdateView | undefined>(undefined)
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
+  const [cliOutput, setCliOutput] = useState<string | undefined>(undefined)
   const installCommands = [
     { key: 'unix', label: copy.installMacLinux, command: 'curl -fsSL https://boss.hdslb.com/toy-cli/toy/install.sh | bash' },
     { key: 'windows', label: copy.installWindows, command: 'irm https://boss.hdslb.com/toy-cli/toy/install.ps1 | iex' },
@@ -58,6 +71,30 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
       // Clipboard unavailable (non-secure context): the command is selectable.
     }
   }, [])
+  const checkCliUpdate = useCallback(async (): Promise<void> => {
+    setCliBusy(true)
+    setCliError(undefined)
+    setCliNote(undefined)
+    setCliOutput(undefined)
+    const outcome = await call<CliUpdateView>('cliUpdateCheck', () => ns.cliUpdateCheck())
+    setCliBusy(false)
+    if (!outcome.ok) {
+      setCliError(outcome.failure)
+      return
+    }
+    const value = outcome.value
+    if (!value.ok) {
+      setCliError(value.error ?? { kind: 'cli', message: 'toy upgrade --check failed' })
+      return
+    }
+    if (value.upToDate) {
+      setCliNote(value.latest === undefined ? copy.cliUpToDate : `${copy.cliUpToDate} (${value.latest})`)
+      return
+    }
+    setCliUpdate(value)
+    setUpgradeOpen(true)
+  }, [ns, copy])
+
   const pageRef = useRef(1)
   const nonceRef = useRef(0)
 
@@ -73,6 +110,26 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     setAccount(outcome.value)
     if (outcome.value.error !== undefined) setAccountError(outcome.value.error)
   }, [ns])
+
+  const runCliUpgrade = useCallback(async (): Promise<void> => {
+    setCliBusy(true)
+    setCliError(undefined)
+    const outcome = await call<CliUpgradeResult>('upgradeCli', () => ns.upgradeCli())
+    setCliBusy(false)
+    setUpgradeOpen(false)
+    if (!outcome.ok) {
+      setCliError(outcome.failure)
+      return
+    }
+    const value = outcome.value
+    setCliOutput(value.output)
+    if (!value.ok) {
+      setCliError(value.error ?? { kind: 'cli', message: 'toy upgrade failed' })
+      return
+    }
+    setCliNote(value.version === undefined ? copy.cliUpgraded : `${copy.cliUpgraded}: ${value.version}`)
+    void loadAccount()
+  }, [ns, copy, loadAccount])
 
   const loadToys = useCallback(
     async (page: number): Promise<void> => {
@@ -257,6 +314,14 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
           account === undefined || account.version === undefined
             ? null
             : h('span', { className: 'toy-caption' }, `${copy.cliVersionLabel}: ${account.version}`),
+          account === undefined || account.version === undefined
+            ? null
+            : h(
+                Button,
+                { onClick: () => void checkCliUpdate(), disabled: cliBusy || accountBusy, title: copy.cliUpgrade },
+                h(Icon, { name: 'download' }),
+                cliBusy ? copy.cliUpgradeChecking : copy.cliUpgrade,
+              ),
           h(
             Button,
             { onClick: () => void loadAccount(), disabled: accountBusy, title: copy.refreshAccount },
@@ -278,7 +343,36 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
               ),
         ),
       ),
+      cliNote === undefined ? null : h('p', { className: 'toy-caption toy-cli-note' }, cliNote),
+      cliOutput === undefined || cliOutput === ''
+        ? null
+        : h(
+            'details',
+            { className: 'toy-skill-output' },
+            h('summary', {}, copy.cliUpgradeOutput),
+            h('pre', { className: 'toy-output' }, cliOutput),
+          ),
+      cliError === undefined ? null : h(FailureBanner, { failure: cliError, copy }),
       accountError === undefined || binaryMissing ? null : h(FailureBanner, { failure: accountError, copy }),
+      upgradeOpen && cliUpdate !== undefined
+        ? h(
+            Dialog,
+            {
+              title: copy.cliUpgradeConfirmTitle,
+              closeLabel: copy.close,
+              onClose: () => { if (!cliBusy) setUpgradeOpen(false) },
+              footer: h(
+                'div',
+                { className: 'toy-skill-actions' },
+                h(Button, { onClick: () => setUpgradeOpen(false), disabled: cliBusy }, copy.cliUpgradeCancel),
+                h(Button, { variant: 'primary', onClick: () => void runCliUpgrade(), disabled: cliBusy }, cliBusy ? copy.cliUpgradeUpgrading : copy.cliUpgradeRun),
+              ),
+            },
+            h('p', {}, copy.cliUpgradeConfirmBody(cliUpdate.current ?? '?', cliUpdate.latest ?? '?')),
+            h('pre', { className: 'toy-output' }, cliUpdate.detail),
+            h('p', { className: 'toy-caption' }, copy.cliUpgradeConfirmWarn),
+          )
+        : null,
       h(SkillCard, { ns, copy, active: true }),
       binaryMissing
         ? h(

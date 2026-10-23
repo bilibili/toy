@@ -35,7 +35,10 @@ function service(options = {}) {
 
 async function logConfig(config = {}) {
   const dir = await tempDir()
-  return { log: join(dir, 'argv.log'), config: { ...config, env: { FAKE_TOY_LOG: join(dir, 'argv.log') } } }
+  return {
+    log: join(dir, 'argv.log'),
+    config: { ...config, env: { ...(config.env ?? {}), FAKE_TOY_LOG: join(dir, 'argv.log') } },
+  }
 }
 
 async function readArgv(log) {
@@ -74,6 +77,40 @@ test('account reports the resolved binary, version and logged-in user', async ()
   assert.equal(view.binary, FAKE_TOY)
   assert.equal(view.version, 'v0.6.4')
   assert.deepEqual(view.user, { uid: 1, name: 'tester' })
+})
+
+test('cliUpdateCheck reports an up-to-date CLI', async () => {
+  const view = await service().cliUpdateCheck()
+  assert.equal(view.ok, true)
+  assert.equal(view.current, 'v0.6.4')
+  assert.equal(view.latest, 'v0.6.4')
+  assert.equal(view.upToDate, true)
+})
+
+test('cliUpdateCheck parses a newer release', async () => {
+  const view = await service({ config: { env: { FAKE_TOY_UPGRADE_LATEST: 'v0.6.5' } } }).cliUpdateCheck()
+  assert.equal(view.ok, true)
+  assert.equal(view.current, 'v0.6.4')
+  assert.equal(view.latest, 'v0.6.5')
+  assert.equal(view.upToDate, false)
+})
+
+test('cliUpdateCheck surfaces CLI failures', async () => {
+  const view = await service({ config: { env: { FAKE_TOY_ERROR: 'crash' } } }).cliUpdateCheck()
+  assert.equal(view.ok, false)
+  assert.equal(view.upToDate, false)
+  assert.match(view.error.message, /connection refused/)
+})
+
+test('upgradeCli runs toy upgrade and reports the version afterwards', async () => {
+  const { log, config } = await logConfig({ env: { FAKE_TOY_VERSION: 'v0.6.5' } })
+  const view = await service({ config }).upgradeCli()
+  assert.equal(view.ok, true)
+  assert.equal(view.version, 'v0.6.5')
+  assert.match(view.output, /升级完成/)
+  const calls = (await readFile(log, 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+  assert.deepEqual(calls[0], ['upgrade'])
+  assert.deepEqual(calls[1], ['version'])
 })
 
 test('account reports a login miss without failing the operation', async () => {

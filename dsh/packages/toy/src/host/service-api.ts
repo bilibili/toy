@@ -9,6 +9,8 @@
 import type {
   AccountView,
   ActionResult,
+  CliUpdateView,
+  CliUpgradeResult,
   HistoryRecord,
   PublishInput,
   PublishPreparation,
@@ -114,6 +116,10 @@ export interface ToyService {
   listToys(page: number, size: number): Promise<ToyListPage>
   /** One Toy's visit stats. */
   stats(id: number, window: StatsWindow): Promise<ToyStats>
+  /** `toy upgrade --check`: current/latest CLI version, without changing anything. */
+  cliUpdateCheck(): Promise<CliUpdateView>
+  /** Run `toy upgrade` after the page's explicit confirmation. */
+  upgradeCli(): Promise<CliUpgradeResult>
   /** Local publish/update history, optionally filtered by path. */
   history(path: string): Promise<readonly HistoryRecord[]>
   /** Bundled vs managed skill state, for the page's skill card. */

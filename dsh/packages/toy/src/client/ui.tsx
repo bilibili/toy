@@ -27,6 +27,7 @@ const GLYPHS = {
   chevronRight: 'm10 6 6 6-6 6',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-8 8a8 8 0 0 1 16 0',
   copy: 'M9 9h11v11H9zM4 15V4h11',
+  download: 'M12 4v11m-5-5 5 5 5-5M5 20h14',
   terminal: 'M4 5h16v14H4zM8 10l2 2-2 2M13 14h3',
 } as const
 
