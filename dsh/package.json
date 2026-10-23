@@ -1,6 +1,6 @@
 {
   "name": "toy-dsh-workspace",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "description": "Workspace for the DSH (DeepSeek Harness) bundle of the toy skills repository: the plugin package and the vendored Typert protocol it builds against.",
