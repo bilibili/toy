@@ -80,6 +80,24 @@ function fromCliFailure(result, extra = {}) {
   })
 }
 
+/** Parse the Chinese/English `toy upgrade --check` text into version fields. */
+function parseUpgradeCheck(text) {
+  const current = text.match(/(?:当前版本|current(?: version)?)[：:]\s*(v?[0-9][\w.+-]*)/i)?.[1]
+  const latest = text.match(/(?:最新版本|latest(?: version)?)[：:]\s*(v?[0-9][\w.+-]*)/i)?.[1]
+  const upToDate = /(?:已是最新|already up[ -]?to[ -]?date)/i.test(text) || (current !== undefined && current === latest)
+  return {
+    ...(current === undefined ? {} : { current }),
+    ...(latest === undefined ? {} : { latest }),
+    upToDate,
+    detail: text.trim(),
+  }
+}
+
+/** Pull the version token out of `toy version` output. */
+function parseVersionText(text) {
+  return text.match(/\bv?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?\b/)?.[0]
+}
+
 /**
  * Best-effort lookup of one Toy in `mylist` for readable confirmation copy.
  * Never fails the calling operation.
@@ -317,6 +335,42 @@ export function createToyService(config, logger = {}) {
         ...(version === undefined ? {} : { version }),
         user: { uid: Number(user?.uid ?? 0), name: String(user?.name ?? '') },
       }
+    },
+
+
+    /** Read-only `toy upgrade --check`; the page decides whether to confirm. */
+    async cliUpdateCheck() {
+      const result = await cli.runText(['upgrade', '--check'], { timeoutMs: Math.max(config.timeoutMs, 120_000) })
+      if (!result.ok) {
+        return {
+          ok: false,
+          upToDate: false,
+          detail: result.text.trim(),
+          error: { kind: result.error?.kind ?? 'cli', message: result.error?.message ?? 'upgrade --check failed', ...(result.error?.hint === undefined ? {} : { hint: result.error.hint }) },
+        }
+      }
+      return { ok: true, ...parseUpgradeCheck(result.text) }
+    },
+
+    /** Replace the host's toy binary after the page's explicit confirmation. */
+    async upgradeCli() {
+      const result = await cli.runText(['upgrade'], { timeoutMs: Math.max(config.uploadTimeoutMs, 300_000) })
+      if (!result.ok) {
+        return {
+          ok: false,
+          output: result.text.trim(),
+          error: { kind: result.error?.kind ?? 'cli', message: result.error?.message ?? 'toy upgrade failed', ...(result.error?.hint === undefined ? {} : { hint: result.error.hint }) },
+        }
+      }
+      cli.schemaCache = null
+      let version
+      try {
+        const versionResult = await cli.runText(['version'])
+        if (versionResult.ok) version = parseVersionText(versionResult.text)
+      } catch {
+        version = undefined
+      }
+      return { ok: true, ...(version === undefined ? {} : { version }), output: result.text.trim() }
     },
 
     /**

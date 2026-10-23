@@ -234,6 +234,26 @@ export interface SkillStatus {
   readonly error?: ToyError
 }
 
+/** Result of `toy upgrade --check` shown next to the CLI version. */
+export interface CliUpdateView {
+  readonly ok: boolean
+  readonly current?: string
+  readonly latest?: string
+  readonly upToDate: boolean
+  /** Raw CLI text, for the confirmation dialog. */
+  readonly detail: string
+  readonly error?: ToyError
+}
+
+/** Result of an explicit `toy upgrade` from the page. */
+export interface CliUpgradeResult {
+  readonly ok: boolean
+  /** Version parsed from `toy version` after the upgrade. */
+  readonly version?: string
+  readonly output: string
+  readonly error?: ToyError
+}
+
 /** Result of an explicit install/update from the page. */
 export interface SkillActionResult {
   readonly ok: boolean
