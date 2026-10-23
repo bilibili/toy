@@ -1,0 +1,27 @@
+# Layer this bundle contributes to a dsh profile.
+# `config` is passed verbatim to the plugin's apply(ctx, config); every field has
+# a default in index.js, so an empty config works.
+- insert:
+    - id: toy
+      name: '@bilibili/dsh-toy'
+      config:
+        # Path to the toy binary. Empty = resolve `toy` from PATH, then
+        # ~/.local/bin/toy (the install script's default location).
+        # binary: ''
+        # Read-only commands (mylist/stats/history/whoami/preview).
+        # timeoutMs: 60000
+        # Package upload + submit; large packages are slow on purpose.
+        # uploadTimeoutMs: 600000
+        # Local package precheck before an upload: block | warn | off.
+        # `block` refuses the upload while any ERROR-class finding remains.
+        # precheck: block
+        # Lifetime of a prepared publish intent (preview -> submit window).
+        # pendingTtlMs: 1800000
+        # Extra environment entries for the toy process (never printed).
+        # env: {}
+        # Agents root the skills CLI installs into (default: $DSH_AGENTS_HOME or ~/.agents).
+        # agentsHome: ""
+        # Agent name for `npx skills add`; must use .agents/skills paths.
+        # skillAgent: codex
+        # Timeout for `npx skills add/update`.
+        # skillTimeoutMs: 180000

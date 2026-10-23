@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2023",
+      "ESNext.Disposable"
+    ]
+  },
+  "references": [
+    {
+      "path": "./packages/dsh-typert-protocol"
+    },
+    {
+      "path": "./packages/toy/tsconfig.package-host.json"
+    }
+  ]
+}

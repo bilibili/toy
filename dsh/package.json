@@ -1,0 +1,16 @@
+{
+  "name": "toy-dsh-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Workspace for the DSH (DeepSeek Harness) bundle of the toy skills repository: the plugin package and the vendored Typert protocol it builds against.",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "check": "pnpm build && pnpm test"
+  }
+}

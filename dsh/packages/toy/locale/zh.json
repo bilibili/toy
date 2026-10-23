@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "bilibili Toy",
+    "description": "通过 toy CLI 发布、更新、预览与查看 B 站 Toy 页面，带「预览 → 确认 → 提交审核」闸门。"
+  }
+}

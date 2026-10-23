@@ -1,0 +1,97 @@
+name: dsh-plugin
+
+# Build/test every change to the bundle. A tag push runs the same checks and
+# then publishes the installable tarball as a GitHub Release. Tag pushes are not
+# filtered by `paths`.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dsh/**'
+      - '.github/workflows/dsh-plugin.yml'
+    tags:
+      - 'dsh-plugin-v*'
+  pull_request:
+    paths:
+      - 'dsh/**'
+      - '.github/workflows/dsh-plugin.yml'
+
+# The release job needs `contents: write` to create the release and upload
+# assets. The default GITHUB_TOKEN is enough; no repository secrets are used.
+permissions:
+  contents: read
+
+concurrency:
+  group: dsh-plugin-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Build and test the bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: dsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: dsh/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+  release:
+    name: Publish the release tarball
+    if: startsWith(github.ref, 'refs/tags/dsh-plugin-v')
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: dsh/pnpm-lock.yaml
+      - name: Check the tag matches the package version
+        run: |
+          node -e '
+            const version = require("./dsh/packages/toy/package.json").version;
+            const tag = process.env.GITHUB_REF_NAME.replace(/^dsh-plugin-v/, "");
+            if (version !== tag) {
+              console.error(`tag ${process.env.GITHUB_REF_NAME} does not match package version ${version}`);
+              process.exit(1);
+            }
+          '
+      - name: Build the tarball
+        run: |
+          pnpm --dir dsh install --frozen-lockfile
+          pnpm --dir dsh/packages/toy pack
+          mkdir -p release
+          cp dsh/packages/toy/bilibili-dsh-toy-*.tgz "release/bilibili-dsh-toy-${GITHUB_REF_NAME#dsh-plugin-v}.tgz"
+          cp dsh/packages/toy/bilibili-dsh-toy-*.tgz release/bilibili-dsh-toy.tgz
+          cd release && sha256sum ./*.tgz > SHA256SUMS
+      - name: Create or update the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "bilibili-dsh-toy ${GITHUB_REF_NAME#dsh-plugin-v}" \
+              --generate-notes \
+              release/*
+          fi
