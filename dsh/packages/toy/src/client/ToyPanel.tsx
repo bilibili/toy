@@ -44,17 +44,20 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   const [selected, setSelected] = useState<ToySummary | undefined>(undefined)
   const [prefill, setPrefill] = useState<PublishPrefill | undefined>(undefined)
   const [note, setNote] = useState<string | undefined>(undefined)
-  const [copied, setCopied] = useState(false)
-  const installCommand = 'curl -fsSL https://boss.hdslb.com/toy-cli/toy/install.sh | bash'
-  const copyInstall = useCallback(async (): Promise<void> => {
+  const [copiedKey, setCopiedKey] = useState<string | undefined>(undefined)
+  const installCommands = [
+    { key: 'unix', label: copy.installMacLinux, command: 'curl -fsSL https://boss.hdslb.com/toy-cli/toy/install.sh | bash' },
+    { key: 'windows', label: copy.installWindows, command: 'irm https://boss.hdslb.com/toy-cli/toy/install.ps1 | iex' },
+  ]
+  const copyInstall = useCallback(async (key: string, command: string): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(installCommand)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      await navigator.clipboard.writeText(command)
+      setCopiedKey(key)
+      setTimeout(() => setCopiedKey(undefined), 1500)
     } catch {
       // Clipboard unavailable (non-secure context): the command is selectable.
     }
-  }, [installCommand])
+  }, [])
   const pageRef = useRef(1)
   const nonceRef = useRef(0)
 
@@ -286,13 +289,16 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
               h('h2', { className: 'toy-install-title' }, copy.installTitle),
             ),
             h('p', { className: 'toy-install-body' }, copy.installBody),
-            h('div', { className: 'toy-code-row' },
-              h('code', { className: 'toy-code' }, installCommand),
-              h(
-                Button,
-                { onClick: () => void copyInstall(), title: copy.installCopy },
-                h(Icon, { name: copied ? 'check' : 'copy' }),
-                copied ? copy.installCopied : copy.installCopy,
+            installCommands.map(entry =>
+              h('div', { key: entry.key, className: 'toy-code-row' },
+                h('span', { className: 'toy-install-platform' }, entry.label),
+                h('code', { className: 'toy-code' }, entry.command),
+                h(
+                  Button,
+                  { onClick: () => void copyInstall(entry.key, entry.command), title: copy.installCopy },
+                  h(Icon, { name: copiedKey === entry.key ? 'check' : 'copy' }),
+                  copiedKey === entry.key ? copy.installCopied : copy.installCopy,
+                ),
               ),
             ),
             h('p', { className: 'toy-caption' }, copy.installHint),

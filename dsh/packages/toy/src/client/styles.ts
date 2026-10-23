@@ -176,6 +176,7 @@ const CSS = `
 .toy-install-head { display: flex; align-items: center; gap: 10px; color: var(--dsw-alias-label-primary); }
 .toy-install-title { margin: 0; font-size: 16px; font-weight: 600; }
 .toy-install-body { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 1.6; }
+.toy-install-platform { flex: 0 0 132px; font-size: 12px; font-weight: 600; color: var(--dsw-alias-label-secondary); }
 .toy-code-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .toy-code {
   flex: 1 1 420px;

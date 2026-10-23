@@ -30,11 +30,18 @@ implementation, so the safety rules cannot drift between them.
 2. **The `toy` binary** (v0.6.x). Install it on the host:
 
    ```sh
+   # macOS / Linux
    curl -fsSL https://boss.hdslb.com/toy-cli/toy/install.sh | bash
    ```
 
+   ```powershell
+   # Windows (PowerShell)
+   irm https://boss.hdslb.com/toy-cli/toy/install.ps1 | iex
+   ```
+
    Resolution order: the `binary` config, then `toy` on `PATH`, then
-   `~/.local/bin/toy`.
+   `~/.local/bin/toy` (macOS/Linux) or `%LOCALAPPDATA%\Programs\toy`
+   (Windows).
 3. **A logged-in session** (`toy login`). The panel's **登录** button starts the
    OAuth flow on the host (a browser window opens there); the model can call
    `toy_account action=login` instead. When any operation reports
