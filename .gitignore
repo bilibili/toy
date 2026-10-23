@@ -3,5 +3,11 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 
+# Node / DSH plugin build outputs
+node_modules/
+dsh/**/node_modules/
+dsh/packages/toy/lib/
+*.tgz
+
 # macOS
 .DS_Store

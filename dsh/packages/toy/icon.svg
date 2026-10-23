@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="bilibili Toy">
+  <path fill="#18191C" d="M4 1h40a3 3 0 0 1 3 3v15H33v26a3 3 0 0 1-3 3H18a3 3 0 0 1-3-3V19H1V4a3 3 0 0 1 3-3Z"/>
+  <rect x="5" y="5" width="9" height="9" rx="2" fill="#00AEEC"/>
+  <rect x="20" y="5" width="9" height="9" rx="2" fill="#FF6699"/>
+  <rect x="34" y="5" width="9" height="9" rx="2" fill="#FFDC40"/>
+  <rect x="20" y="20" width="9" height="9" rx="2" fill="#2AC864"/>
+  <rect x="20" y="34" width="9" height="9" rx="2" fill="#AC6DFF"/>
+</svg>

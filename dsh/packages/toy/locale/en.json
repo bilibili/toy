@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "bilibili Toy",
+    "description": "Publish, update, preview and inspect Bilibili Toy pages through the toy CLI, with a preview-to-submit confirmation gate."
+  }
+}

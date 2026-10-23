@@ -1,0 +1,106 @@
+{
+  "name": "@bilibili/dsh-toy",
+  "version": "0.1.0",
+  "description": "A full Web UI and model tools for the Bilibili Toy creator CLI: browse and inspect your Toys, run the local package precheck, preview a publish, then explicitly confirm it for review. The skill is installed and updated through the skills CLI.",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./remote": {
+      "types": "./lib/typert.remote-client.d.ts",
+      "default": "./lib/typert.remote-client.js"
+    },
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
+    },
+    "./types": {
+      "types": "./lib/types/shared/types.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "toy",
+    "bilibili",
+    "cli"
+  ],
+  "license": "MIT",
+  "icon": "./icon.svg",
+  "engines": {
+    "dsh": ">=0.2.1-rc.2 <0.3.0"
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && tsdown && tsc && tsdown -c tsdown.client.config.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node --test test/*.test.mjs",
+    "prepublishOnly": "pnpm build",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.1-rc.2 <0.3.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-typert-generator": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.2",
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes"
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bilibili/toy.git",
+    "directory": "dsh/packages/toy"
+  },
+  "homepage": "https://github.com/bilibili/toy/tree/main/dsh/packages/toy",
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,8 @@
+packages:
+  - 'packages/*'
+
+# The typert generator only recognizes Remote decorators from a *workspace*
+# package named @deepseek-ai/dsh-typert-protocol, so the build uses the
+# vendored copy; runtime imports still resolve to the DSH installation's copy.
+overrides:
+  '@deepseek-ai/dsh-typert-protocol': link:packages/dsh-typert-protocol
