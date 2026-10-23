@@ -64,15 +64,6 @@ stats, the precheck → preview → explicit-confirm publish wizard, and local
 history — plus the same operations as `toy_*` tools for the model. One Host
 implementation backs both, so the rules cannot drift.
 
-Safety in short:
-
-- preparing a publish never submits; it only creates a preview (or plans a
-  metadata-only update), and submit stays disabled until you explicitly confirm;
-- the package is content-fingerprinted before its preview upload, so submit
-  cannot send bytes you did not see;
-- an upload is refused while the local precheck reports an ERROR;
-- the other destructive action (local history clear) needs a typed confirmation
-  and a one-shot Host ticket.
 
 ### Requirements
 
@@ -82,41 +73,21 @@ Safety in short:
 
 ### Install
 
-Once a `dsh-plugin-v*` tag has run the release workflow:
-
 ```sh
-# latest
 dsh plugin --profile web add https://github.com/bilibili/toy/releases/latest/download/bilibili-dsh-toy.tgz
-# pinned
-dsh plugin --profile web add https://github.com/bilibili/toy/releases/download/dsh-plugin-v0.1.0/bilibili-dsh-toy-0.1.0.tgz
 ```
 
-From a source checkout:
-
-```sh
-pnpm --dir dsh install
-pnpm --dir dsh check
-dsh plugin --profile web add /absolute/path/to/dsh/packages/toy
-```
-
-Updating a tarball install means running the `add` again with the new tarball;
-there is no auto-update channel.
+Pinned versions, source builds and update/restart notes are in the
+[package README](dsh/packages/toy/README.md#install).
 
 ### The skill is not bundled
 
-The plugin does not ship a copy of the skill. Install/update it through the
-skills CLI (DSH's filesystem provider watches those directories), or from the
-panel's **Skill** card, which shows the installed version, content hash and
-update time and runs the same command after a confirmation:
+The plugin does not ship a copy of the skill; install it with the command under
+[Skills](#skills). The panel's **Skill** card shows the installed version,
+content hash and update time and can run the same update after a confirmation.
 
-```sh
-npx skills add bilibili/toy -a codex -g   # ~/.agents/skills/toy
-npx skills check && npx skills update
-```
-
-Full details — tabs, tools, the precheck table, configuration, the security
-model, development and known limitations — are in
-[`dsh/packages/toy/README.md`](dsh/packages/toy/README.md).
+Full details — tabs, configuration, the security model and known limitations —
+are in [`dsh/packages/toy/README.md`](dsh/packages/toy/README.md).
 
 ## Layout
 
@@ -146,25 +117,6 @@ pnpm --dir dsh check      # build + node:test suite (fake toy binary)
 
 Agents and contributors: the working rules, verification playbooks and release
 checklist are in [`AGENTS.md`](AGENTS.md).
-
-The release workflow (`.github/workflows/dsh-plugin.yml`) runs on `dsh/**`
-changes and, for a `dsh-plugin-vX.Y.Z` tag, packs the tarball, writes
-`SHA256SUMS` and creates the GitHub release.
-
-### Releasing
-
-1. Bump `version` in `dsh/packages/toy/package.json` (the tag must match it).
-2. Push to `main`, then push the tag:
-
-   ```sh
-   git tag dsh-plugin-v0.1.0
-   git push origin dsh-plugin-v0.1.0
-   ```
-
-The workflow runs the same build/tests, attaches `bilibili-dsh-toy-<version>.tgz`,
-`bilibili-dsh-toy.tgz` and `SHA256SUMS`, and publishes release notes. It only
-needs the automatic `GITHUB_TOKEN` with `contents: write` — no repository
-secrets.
 
 ## License
 

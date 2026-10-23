@@ -16,9 +16,8 @@ implementation, so the safety rules cannot drift between them.
   confirmation. The other `--yes` (destructive local history clear) asks the
   same way **and** needs a one-shot ticket issued by the Host after that
   confirmation, so a stray single call cannot wipe local history.
-- **no upload while the local content precheck has errors** — root-relative
-  assets, a missing entry `index.html`, an entry document over 1 MB and similar
-  white-screen traps are reported before anything is uploaded.
+- **no upload while the local content precheck reports an error** — common
+  white-screen traps are checked before anything is uploaded.
 - **submitting cannot send different bytes than the preview** — the package is
   content-fingerprinted **before** the preview upload; if it changes before
   submit, the submit is refused and the preview must be re-created.
@@ -30,11 +29,18 @@ implementation, so the safety rules cannot drift between them.
 2. **The `toy` binary** (v0.6.x). Install it on the host:
 
    ```sh
+   # macOS / Linux
    curl -fsSL https://boss.hdslb.com/toy-cli/toy/install.sh | bash
    ```
 
+   ```powershell
+   # Windows (PowerShell)
+   irm https://boss.hdslb.com/toy-cli/toy/install.ps1 | iex
+   ```
+
    Resolution order: the `binary` config, then `toy` on `PATH`, then
-   `~/.local/bin/toy`.
+   `~/.local/bin/toy` (macOS/Linux) or `%LOCALAPPDATA%\Programs\toy`
+   (Windows).
 3. **A logged-in session** (`toy login`). The panel's **登录** button starts the
    OAuth flow on the host (a browser window opens there); the model can call
    `toy_account action=login` instead. When any operation reports
@@ -56,7 +62,7 @@ A released tarball ships the built `lib/`:
 # latest release
 dsh plugin --profile web add https://github.com/bilibili/toy/releases/latest/download/bilibili-dsh-toy.tgz
 # pinned version
-dsh plugin --profile web add https://github.com/bilibili/toy/releases/download/dsh-plugin-v0.1.0/bilibili-dsh-toy-0.1.0.tgz
+dsh plugin --profile web add https://github.com/bilibili/toy/releases/download/dsh-plugin-v0.1.1/bilibili-dsh-toy-0.1.1.tgz
 ```
 
 From a source checkout, build the workspace once, then link the package:
@@ -91,12 +97,6 @@ The access password is sent only to the CLI: it is masked (`••••`) in ev
 wire payload, summary and confirmation dialog, so it never reaches the model
 transcript or the page's DOM.
 
-The browser talks to the Host over one generated Remote namespace
-(`toyPublisher`); every call returns `{ ok, value }` / `{ ok:false, error }`.
-Preparing a publish never submits; the submit button stays disabled until the
-preview has been acknowledged (metadata-only updates show the planned changes
-instead, with the same explicit gate).
-
 ## Skill (managed by the skills CLI)
 
 The bundle does **not** ship its own copy of the toy skill. The skill is
@@ -114,15 +114,9 @@ npx skills check     # what has updates
 npx skills update    # pull them
 ```
 
-- The skills CLI has no `dsh` target, so pick any agent whose install path is
-  `.agents/skills/` or `~/.agents/skills/` (`codex`, `cline`, `cursor`,
-  `gemini-cli`, …). `-a universal` only maps to `~/.config/agents/skills` for
-  global installs, which DSH does not scan by default (point `agentsHome` /
-  `$DSH_AGENTS_HOME` at it if you prefer that path).
-- DSH watches the filesystem roots, so an update reaches the next catalog
-  without restarting dsh.
-- The CLI needs Node.js 22.20+; set `DISABLE_TELEMETRY=1` if you do not want its
-  anonymous telemetry.
+- The skills CLI has no `dsh` target; pick an agent whose install path is
+  `.agents/skills`/`~/.agents/skills` (`codex`, `cline`, `cursor`, …). DSH
+  watches those roots, so an update reaches the next catalog without a restart.
 
 The panel's **Skill card** shows the installed version (the CLI's lock-file
 hash), our content hash and the update time, and offers **安装 skill / 更新
@@ -132,61 +126,6 @@ configuration is `agentsHome`, `skillAgent` and `skillTimeoutMs`.
 
 The skill is documentation (workflow + checklists). The preview gate and the
 `--yes`/ticket rules are enforced in code and do not depend on the model reading it.
-
-## Tools (model-facing)
-
-| Tool | What it does | Writes? |
-|---|---|---|
-| `toy_account` | `status` / `login` / `logout` (server-side OAuth) | session only |
-| `toy_list` | My Toys (`toy mylist`), normalized to id/title/slug/status/visibility/… | no |
-| `toy_stats` | One Toy's PV/UV, retention and interaction stats | no |
-| `toy_history` | Local publish/update history; `clear` asks first | local only |
-| `toy_precheck` | Local package precheck (no network, no upload) | no |
-| `toy_publish` | **Prepare** a create/update: path → upload once for a `preview_url`; metadata-only → planned, not sent | upload only |
-| `toy_submit` | Confirm with the user, then run the prepared argv + `--yes` | **submits for review** |
-| `toy_run` | Read-only passthrough validated against `toy --help-json` (e.g. `video list`, `shared-storage list`); flags must follow the full command path; `help: true` returns the CLI's help-json for the command path only | refused for writes |
-
-Publish workflow the model is expected to follow:
-
-```text
-toy_publish(action=create|update, path=…, …)   → { preview_url, pending_id }
-  ↓ show preview_url to the user; wait for them to look
-toy_submit(pending_id=…)                       → asks the user in the UI
-  ↓ only on an explicit "submit"
-{ id, status: "reviewing" }
-```
-
-A pending id is one-shot, expires (`pendingTtlMs`, default 30 min) and belongs
-to the session that prepared it. A cancelled confirmation keeps it usable, but
-a drifted package invalidates it.
-
-## What the precheck covers
-
-Port of the Toy skill's `toy_doctor.py`. ERRORs are reserved for cases that
-white-screen a page or a server/CLI hard reject; anything versioned or
-heuristic is a WARN so the bundle never blocks a package the CLI would accept:
-
-| Check | Severity |
-|---|---|
-| Package type/existence; readable ZIP | ERROR |
-| Entry `index.html` (root, or exactly one first-level folder) | ERROR when missing/ambiguous |
-| Entry `index.html` over 1 MB decompressed (ZIP: decompressed size) | ERROR |
-| Root-relative `src`/`href`/`poster`/`data`/`srcset` and `url()` references | ERROR |
-| Referenced local resource missing | ERROR |
-| Root-relative JS navigation (`location = "/…"`) | ERROR |
-| Slug (`[A-Za-z0-9_-]`, ≤64 bytes) | ERROR |
-| Missing/unreadable/empty icon file | ERROR |
-| Packaged PNG/JPEG with a side ≥10000 px (the CLI's own pre-upload check) | ERROR |
-| Icon over 512 KB or 1024 px per side, or not PNG/JPEG by content | WARN |
-| Poster content not PNG/JPEG, not 4:3, portrait | WARN |
-| First-level-only entry `index.html`; ZIP members escaping the archive root | WARN |
-| Missing `<title>`; framework source root uploaded; huge HTML document | WARN |
-| Assets without content hashes; cloud-storage/leaderboard call shapes | WARN |
-
-`ERROR` blocks an upload under the default `precheck: block`. `warn` uploads
-anyway and reports; `off` skips the check (the CLI still enforces its own
-limits). `node_modules`, dot-paths, `__MACOSX`, `.DS_Store` and the legacy
-`toy.yaml` are excluded, matching the CLI's packaging.
 
 ## Configuration
 
@@ -210,31 +149,6 @@ The CLI process gets the ambient environment with harness credentials removed
 (`DSH_*` and any `*_KEY`/`*_TOKEN`/`*_SECRET`/`*_PASSWORD` variables are not
 forwarded); add anything it needs through `env`.
 
-## Development
-
-```sh
-pnpm --dir dsh install   # workspace dependencies (build toolchain included)
-pnpm --dir dsh check     # build + the node:test suite (fake toy binary)
-```
-
-Package-level scripts run from this directory once the workspace is installed:
-`pnpm build` (tsdown host + typert artifacts + tsc declarations + client
-bundle), `pnpm test` (build, then `node --test`), `pnpm typecheck`
-(`tsc --noEmit`).
-
-`lib/` is a build output and is not committed. The browser bundle
-is a lazy-CJS factory (`window.__ModuleLoader__.load`) produced by
-`tsdown.client.config.ts`; the Remote codecs come from the Typert generator via
-`tsdown.config.ts`.
-
-Boot a local instance against an isolated home:
-
-```sh
-DSH="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-DSH_HOME=/tmp/dsh-toy-dev "$DSH" plugin --profile web add "$PWD"
-DSH_HOME=/tmp/dsh-toy-dev "$DSH" --profile web --no-open --port 0
-```
-
 ## Known limitations
 
 - **The package path must be a host path.** The browser cannot upload files
@@ -243,14 +157,8 @@ DSH_HOME=/tmp/dsh-toy-dev "$DSH" --profile web --no-open --port 0
   browser is future work.
 - **Metadata-only updates have no preview URL.** The CLI itself has no preview
   for them; the confirmation shows the planned field changes.
-- **Pending intents live in memory.** A dsh restart between preview and submit
-  loses the token; prepare the publish again.
-- **The page and the model cannot share a pending intent** (per-session owner).
 - **Slug is immutable.** Updating rejects `slug`; changing the URL requires a
   delete + recreate, which this bundle does not do.
-- **Not exposed:** `video bind/unbind` and shared-storage writes (they mutate
-  online state outside the preview gate). Use `toy` directly for those;
-  read-only variants are available through `toy_run`.
 - **Precheck is not the final authority.** Upload size limits are
   account-dependent and are not enforced locally; the server/CLI decides.
 - **Skill scope matters.** A project install (`.agents/skills`) ranks above the

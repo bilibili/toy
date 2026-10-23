@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 
 import {
   ToyCli,
+  binaryCandidates,
   classifyFailure,
   execToy,
   flattenSchema,
@@ -133,4 +135,22 @@ test('the child environment never receives harness credentials', () => {
     if (previous === undefined) delete process.env.DEEPSEEK_API_KEY
     else process.env.DEEPSEEK_API_KEY = previous
   }
+})
+
+test('binaryCandidates resolves POSIX and Windows locations', () => {
+  const unix = binaryCandidates('darwin', { PATH: '/usr/bin:/opt/bin' }, '/Users/me')
+  assert.deepEqual(unix, [
+    join('/usr/bin', 'toy'),
+    join('/opt/bin', 'toy'),
+    join('/Users/me', '.local', 'bin', 'toy'),
+  ])
+
+  const win = binaryCandidates('win32', {
+    PATH: 'C:\\bin;D:\\tools',
+    LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local',
+  }, 'C:\\Users\\me')
+  assert.ok(win.includes(join('C:\\bin', 'toy.exe')))
+  assert.ok(win.includes(join('C:\\bin', 'toy.cmd')))
+  assert.ok(win.includes(join('C:\\Users\\me\\AppData\\Local', 'Programs', 'toy', 'toy.exe')))
+  assert.equal(win.some(candidate => candidate.endsWith('toy')), false)
 })

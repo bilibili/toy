@@ -232,6 +232,26 @@ export function binaryMissingHint(configured = '') {
  * @param {string} configured
  * @returns {Promise<string>}
  */
+/** Candidate executables for a platform, in resolution order. */
+export function binaryCandidates(platform = process.platform, env = process.env, home = homedir()) {
+  const names = platform === 'win32' ? ['toy.exe', 'toy.cmd', 'toy.bat'] : ['toy']
+  const separator = platform === 'win32' ? ';' : ':'
+  const candidates = []
+  for (const dir of (env.PATH ?? env.Path ?? '').split(separator)) {
+    if (dir === '') continue
+    for (const name of names) candidates.push(join(dir, name))
+  }
+  if (platform === 'win32') {
+    const localAppData = env.LOCALAPPDATA
+    if (typeof localAppData === 'string' && localAppData !== '') {
+      candidates.push(join(localAppData, 'Programs', 'toy', 'toy.exe'))
+    }
+  } else {
+    candidates.push(join(home, '.local', 'bin', 'toy'))
+  }
+  return candidates
+}
+
 export async function resolveToyBinary(configured = '') {
   if (configured !== '') {
     try {
@@ -241,12 +261,7 @@ export async function resolveToyBinary(configured = '') {
       throw new Error(`the toy CLI configured at \`binary\` is not executable: ${configured}`)
     }
   }
-  const candidates = []
-  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
-    if (dir !== '') candidates.push(join(dir, 'toy'))
-  }
-  candidates.push(join(homedir(), '.local', 'bin', 'toy'))
-  for (const candidate of candidates) {
+  for (const candidate of binaryCandidates()) {
     try {
       await access(candidate, constants.X_OK)
       return candidate
@@ -254,7 +269,8 @@ export async function resolveToyBinary(configured = '') {
       // try the next candidate
     }
   }
-  throw new Error(`the toy CLI was not found on PATH or at ~/.local/bin/toy. ${binaryMissingHint()}`)
+  const where = process.platform === 'win32' ? 'PATH or %LOCALAPPDATA%\\Programs\\toy' : 'PATH or ~/.local/bin/toy'
+  throw new Error(`the toy CLI was not found on ${where}. ${binaryMissingHint()}`)
 }
 
 /**
