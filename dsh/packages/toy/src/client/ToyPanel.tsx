@@ -53,7 +53,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   const [note, setNote] = useState<string | undefined>(undefined)
   const [copiedKey, setCopiedKey] = useState<string | undefined>(undefined)
   const [cliBusy, setCliBusy] = useState(false)
-  const [cliNote, setCliNote] = useState<string | undefined>(undefined)
+  const [cliResult, setCliResult] = useState<{ readonly kind: 'latest' | 'upgraded'; readonly version?: string } | undefined>(undefined)
   const [cliError, setCliError] = useState<Failure | undefined>(undefined)
   const [cliUpdate, setCliUpdate] = useState<CliUpdateView | undefined>(undefined)
   const [upgradeOpen, setUpgradeOpen] = useState(false)
@@ -71,10 +71,19 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
       // Clipboard unavailable (non-secure context): the command is selectable.
     }
   }, [])
+  const cliButtonLabel = cliBusy
+    ? copy.cliUpgradeChecking
+    : cliResult?.kind === 'latest'
+      ? copy.cliUpToDate
+      : cliResult?.kind === 'upgraded'
+        ? copy.cliUpgraded
+        : copy.cliUpgrade
+  const cliButtonIcon = cliResult === undefined ? 'download' : 'check'
+
   const checkCliUpdate = useCallback(async (): Promise<void> => {
     setCliBusy(true)
     setCliError(undefined)
-    setCliNote(undefined)
+    setCliResult(undefined)
     setCliOutput(undefined)
     const outcome = await call<CliUpdateView>('cliUpdateCheck', () => ns.cliUpdateCheck())
     setCliBusy(false)
@@ -88,7 +97,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
       return
     }
     if (value.upToDate) {
-      setCliNote(value.latest === undefined ? copy.cliUpToDate : `${copy.cliUpToDate} (${value.latest})`)
+      setCliResult({ kind: 'latest', ...(value.latest === undefined ? {} : { version: value.latest }) })
       return
     }
     setCliUpdate(value)
@@ -115,20 +124,25 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     setCliBusy(true)
     setCliError(undefined)
     const outcome = await call<CliUpgradeResult>('upgradeCli', () => ns.upgradeCli())
-    setCliBusy(false)
     setUpgradeOpen(false)
     if (!outcome.ok) {
+      setCliBusy(false)
       setCliError(outcome.failure)
       return
     }
     const value = outcome.value
     setCliOutput(value.output)
     if (!value.ok) {
+      setCliBusy(false)
       setCliError(value.error ?? { kind: 'cli', message: 'toy upgrade failed' })
       return
     }
-    setCliNote(value.version === undefined ? copy.cliUpgraded : `${copy.cliUpgraded}: ${value.version}`)
-    void loadAccount()
+    setCliResult({ kind: 'upgraded', ...(value.version === undefined ? {} : { version: value.version }) })
+    if (value.version !== undefined) {
+      setAccount((current) => (current === undefined ? current : { ...current, version: value.version }))
+    }
+    await loadAccount()
+    setCliBusy(false)
   }, [ns, copy, loadAccount])
 
   const loadToys = useCallback(
@@ -319,8 +333,8 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
             : h(
                 Button,
                 { onClick: () => void checkCliUpdate(), disabled: cliBusy || accountBusy, title: copy.cliUpgrade },
-                h(Icon, { name: 'download' }),
-                cliBusy ? copy.cliUpgradeChecking : copy.cliUpgrade,
+                h(Icon, { name: cliButtonIcon }),
+                cliButtonLabel,
               ),
           h(
             Button,
@@ -343,7 +357,6 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
               ),
         ),
       ),
-      cliNote === undefined ? null : h('p', { className: 'toy-caption toy-cli-note' }, cliNote),
       cliOutput === undefined || cliOutput === ''
         ? null
         : h(

@@ -46,7 +46,7 @@ if (has('--help-json')) {
   process.stdout.write(`${JSON.stringify({
     schema_version: '1',
     name: 'toy',
-    version: 'v0.6.4',
+    version: process.env.FAKE_TOY_VERSION ?? 'v0.6.4',
     global_flags: [{ name: 'json', type: 'bool', default: 'false' }],
     commands: [
       { path: ['create'], args: { min: 1, max: 1, names: ['path'] }, flags: [{ name: 'title', type: 'string' }], writes: true },
