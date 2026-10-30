@@ -35,7 +35,7 @@ Node.js ≥22.19, pnpm 10.30.3, network on first install.
 
 ```sh
 pnpm install        # from this directory (dsh/)
-pnpm check          # build + node:test suite (117 tests, fake toy binary)
+pnpm check          # build + node:test suite (129 tests, fake toy binary)
 ```
 
 Package-level commands, from `packages/toy/` after the workspace install:

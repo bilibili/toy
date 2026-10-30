@@ -6,20 +6,17 @@
 
 import { useSyncExternalStore } from 'react'
 
+import { createLocaleSource, isChineseLocale, prefersChinese } from './locale.js'
+
 /** The subset of the DSH `locale` service the page needs. */
 export interface LocaleService {
   getLocale(): { readonly active?: string } | undefined
   subscribe?(listener: () => void): () => void
 }
 
-/** The host context needed to look the locale service up late. */
+/** The host context needed to look the locale service up. */
 export interface LocaleContext {
   get(serviceKey: string): unknown
-}
-
-/** True when the browser prefers Chinese. */
-export function prefersChinese(): boolean {
-  return typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh')
 }
 
 const ZH = {
@@ -562,81 +559,24 @@ export type Copy = typeof ZH
 
 /** Pick the copy table for an active locale tag. */
 export function pickCopy(active?: string): { readonly copy: Copy; readonly zh: boolean } {
-  const zh = typeof active === 'string' && active !== '' ? active.toLowerCase().startsWith('zh') : prefersChinese()
+  const zh = typeof active === 'string' && active !== '' ? isChineseLocale(active) : prefersChinese()
   return { copy: zh ? ZH : EN, zh }
 }
 
-let localeContext: LocaleContext | undefined
-let localeService: LocaleService | undefined
-let revision = 0
-const listeners = new Set<() => void>()
-
-function notify(): void {
-  revision += 1
-  for (const listener of listeners) listener()
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
-
-function snapshot(): number {
-  return revision
-}
-
-/** Look the optional locale service up; a missing or failing lookup is fine. */
-function resolveLocaleService(context: LocaleContext | undefined): LocaleService | undefined {
-  if (context === undefined || typeof context.get !== 'function') return undefined
-  try {
-    return context.get('locale') as LocaleService | undefined
-  } catch {
-    return undefined
-  }
-}
+/** The page's locale source; `bindLocale` points it at the DSH `locale` service. */
+const localeSource = createLocaleSource()
 
 /**
- * Follow the DSH locale service. The context is kept so a service that
- * registers after this plugin is still sampled; returns a disposer that
- * restores the browser fallback. Call it from `ctx.effect`.
+ * Follow the DSH locale service. The source re-resolves the service on every
+ * read and subscribes again when a late or replaced instance appears; returns
+ * a disposer that restores the browser fallback. Call it from `ctx.effect`.
  */
 export function bindLocale(context: LocaleContext | undefined): () => void {
-  localeContext = context
-  localeService = resolveLocaleService(context)
-  let unsubscribe: (() => void) | undefined
-  try {
-    if (typeof localeService?.subscribe === 'function') unsubscribe = localeService.subscribe(notify)
-  } catch {
-    unsubscribe = undefined
-  }
-  return () => {
-    try {
-      unsubscribe?.()
-    } catch {
-      // The service may be tearing down with the plugin; nothing to release.
-    }
-    if (localeContext === context) {
-      localeContext = undefined
-      localeService = undefined
-    }
-  }
-}
-
-/** The locale tag DSH is currently using, when the service is available. */
-function activeLocale(): string | undefined {
-  try {
-    const service = localeService ?? resolveLocaleService(localeContext)
-    const active = service?.getLocale?.()?.active
-    return typeof active === 'string' && active !== '' ? active : undefined
-  } catch {
-    return undefined
-  }
+  return localeSource.bind(context)
 }
 
 /** Copy for the current DSH locale; re-renders when the setting changes. */
 export function useCopy(): { readonly copy: Copy; readonly zh: boolean } {
-  useSyncExternalStore(subscribe, snapshot, snapshot)
-  return pickCopy(activeLocale())
+  const active = useSyncExternalStore(localeSource.subscribe, localeSource.snapshot, localeSource.snapshot)
+  return pickCopy(active)
 }
