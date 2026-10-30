@@ -17,7 +17,6 @@ import remote from '@bilibili/dsh-toy/remote'
 
 import type { ToyNamespace } from './api.ts'
 import { bindLocale } from './i18n.ts'
-import type { LocaleService } from './i18n.ts'
 import { ToyBundleSummary } from './BundleSummary.tsx'
 import { ToyPanel } from './ToyPanel.tsx'
 
@@ -98,16 +97,9 @@ export async function apply(ctx: ClientContext): Promise<void> {
   ctx.effect(() => disposeMount, 'toy: remote mount')
 
   // The locale service is optional: without it the copy falls back to the
-  // browser language. Binding here also re-renders the panel on a language
-  // switch, since the copy hooks subscribe to the service.
-  const locale = (() => {
-    try {
-      return ctx.get('locale') as LocaleService | undefined
-    } catch {
-      return undefined
-    }
-  })()
-  ctx.effect(() => bindLocale(locale), 'toy: locale binding')
+  // browser language. The context is kept so a service registered after this
+  // plugin is still sampled; the copy hooks re-render on a language switch.
+  ctx.effect(() => bindLocale(ctx), 'toy: locale binding')
 
   const namespace = ctx.get('remote.toyPublisher')
   if (namespace === undefined) {

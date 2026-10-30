@@ -12,6 +12,11 @@ export interface LocaleService {
   subscribe?(listener: () => void): () => void
 }
 
+/** The host context needed to look the locale service up late. */
+export interface LocaleContext {
+  get(serviceKey: string): unknown
+}
+
 /** True when the browser prefers Chinese. */
 export function prefersChinese(): boolean {
   return typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh')
@@ -561,6 +566,7 @@ export function pickCopy(active?: string): { readonly copy: Copy; readonly zh: b
   return { copy: zh ? ZH : EN, zh }
 }
 
+let localeContext: LocaleContext | undefined
 let localeService: LocaleService | undefined
 let revision = 0
 const listeners = new Set<() => void>()
@@ -581,23 +587,48 @@ function snapshot(): number {
   return revision
 }
 
+/** Look the optional locale service up; a missing or failing lookup is fine. */
+function resolveLocaleService(context: LocaleContext | undefined): LocaleService | undefined {
+  if (context === undefined || typeof context.get !== 'function') return undefined
+  try {
+    return context.get('locale') as LocaleService | undefined
+  } catch {
+    return undefined
+  }
+}
+
 /**
- * Follow the DSH locale service. Returns a disposer that restores the browser
- * fallback; call it from `ctx.effect` so a plugin reload unbinds cleanly.
+ * Follow the DSH locale service. The context is kept so a service that
+ * registers after this plugin is still sampled; returns a disposer that
+ * restores the browser fallback. Call it from `ctx.effect`.
  */
-export function bindLocale(service: LocaleService | undefined): () => void {
-  localeService = service
-  const unsubscribe = typeof service?.subscribe === 'function' ? service.subscribe(notify) : undefined
+export function bindLocale(context: LocaleContext | undefined): () => void {
+  localeContext = context
+  localeService = resolveLocaleService(context)
+  let unsubscribe: (() => void) | undefined
+  try {
+    if (typeof localeService?.subscribe === 'function') unsubscribe = localeService.subscribe(notify)
+  } catch {
+    unsubscribe = undefined
+  }
   return () => {
-    unsubscribe?.()
-    if (localeService === service) localeService = undefined
+    try {
+      unsubscribe?.()
+    } catch {
+      // The service may be tearing down with the plugin; nothing to release.
+    }
+    if (localeContext === context) {
+      localeContext = undefined
+      localeService = undefined
+    }
   }
 }
 
 /** The locale tag DSH is currently using, when the service is available. */
 function activeLocale(): string | undefined {
   try {
-    const active = localeService?.getLocale()?.active
+    const service = localeService ?? resolveLocaleService(localeContext)
+    const active = service?.getLocale?.()?.active
     return typeof active === 'string' && active !== '' ? active : undefined
   } catch {
     return undefined
