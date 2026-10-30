@@ -82,7 +82,9 @@ The `toy` binary and its login are **per machine/user**, not per dsh profile.
 ## Web UI
 
 The bundle registers a global panel (sidebar entry **bilibili Toy** + main column) and
-the same component, compact, on its Plugins page card.
+the same component, compact, on its Plugins page card. The panel follows the DSH
+language setting (Chinese or English) and re-renders on a switch; if the locale
+service is unavailable it falls back to the browser language.
 
 | Tab | What you can do |
 |---|---|

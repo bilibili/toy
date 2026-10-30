@@ -1,7 +1,16 @@
 /**
  * Page copy. Chinese is the primary language; anything else gets English.
- * The browser language is sampled once per page mount.
+ * The active locale comes from the DSH `locale` service, falling back to the
+ * browser language when the service is unavailable.
  */
+
+import { useSyncExternalStore } from 'react'
+
+/** The subset of the DSH `locale` service the page needs. */
+export interface LocaleService {
+  getLocale(): { readonly active?: string } | undefined
+  subscribe?(listener: () => void): () => void
+}
 
 /** True when the browser prefers Chinese. */
 export function prefersChinese(): boolean {
@@ -546,8 +555,57 @@ const EN: typeof ZH = {
 /** The copy table the page uses. */
 export type Copy = typeof ZH
 
-/** Pick the copy table once per mount. */
-export function pickCopy(): { readonly copy: Copy; readonly zh: boolean } {
-  const zh = prefersChinese()
+/** Pick the copy table for an active locale tag. */
+export function pickCopy(active?: string): { readonly copy: Copy; readonly zh: boolean } {
+  const zh = typeof active === 'string' && active !== '' ? active.toLowerCase().startsWith('zh') : prefersChinese()
   return { copy: zh ? ZH : EN, zh }
+}
+
+let localeService: LocaleService | undefined
+let revision = 0
+const listeners = new Set<() => void>()
+
+function notify(): void {
+  revision += 1
+  for (const listener of listeners) listener()
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+function snapshot(): number {
+  return revision
+}
+
+/**
+ * Follow the DSH locale service. Returns a disposer that restores the browser
+ * fallback; call it from `ctx.effect` so a plugin reload unbinds cleanly.
+ */
+export function bindLocale(service: LocaleService | undefined): () => void {
+  localeService = service
+  const unsubscribe = typeof service?.subscribe === 'function' ? service.subscribe(notify) : undefined
+  return () => {
+    unsubscribe?.()
+    if (localeService === service) localeService = undefined
+  }
+}
+
+/** The locale tag DSH is currently using, when the service is available. */
+function activeLocale(): string | undefined {
+  try {
+    const active = localeService?.getLocale()?.active
+    return typeof active === 'string' && active !== '' ? active : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Copy for the current DSH locale; re-renders when the setting changes. */
+export function useCopy(): { readonly copy: Copy; readonly zh: boolean } {
+  useSyncExternalStore(subscribe, snapshot, snapshot)
+  return pickCopy(activeLocale())
 }

@@ -6,18 +6,19 @@
  * never the full multi-tab page.
  */
 
-import { createElement as h, useCallback, useEffect, useMemo, useState } from 'react'
+import { createElement as h, useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { call } from './api.ts'
 import type { Failure, ToyNamespace } from './api.ts'
-import { pickCopy } from './i18n.ts'
+import { useCopy } from './i18n.ts'
+import type { Copy } from './i18n.ts'
 import { useToyStyles } from './styles.ts'
 import { Badge, Button, FailureBanner, Icon, Loading } from './ui.tsx'
 import type { AccountView } from '../shared/types.ts'
 
 /** One-line summary rendered where the Plugins page asks for `view: 'summary'`. */
-function summaryLine(copy: ReturnType<typeof pickCopy>['copy'], account: AccountView | undefined): ReactNode {
+function summaryLine(copy: Copy, account: AccountView | undefined): ReactNode {
   if (account === undefined) {
     return h(
       'span',
@@ -60,7 +61,7 @@ export function ToyBundleSummary({
   readonly view: 'summary' | 'page'
   readonly onOpenPanel?: () => void
 }): ReactNode {
-  const { copy } = useMemo(() => pickCopy(), [])
+  const { copy } = useCopy()
   useToyStyles()
   const [account, setAccount] = useState<AccountView | undefined>(undefined)
   const [busy, setBusy] = useState(false)
