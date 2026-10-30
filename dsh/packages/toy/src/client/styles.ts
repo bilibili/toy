@@ -128,8 +128,8 @@ const CSS = `
 .toy-chart-axis{display:flex;justify-content:space-between;font-size:10px;color:var(--dsw-alias-label-caption)}
 .toy-table-wrap{overflow:auto;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-layer-1)}
 .toy-table{width:100%;border-collapse:collapse;font-size:12px}
-.toy-table th{position:sticky;top:0;text-align:left;padding:8px 10px;font-weight:500;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-bottom:1px solid var(--dsw-alias-border-l2);white-space:nowrap}
-.toy-table td{padding:8px 10px;border-bottom:1px solid var(--dsw-alias-border-l2);vertical-align:top}
+.toy-table th{position:sticky;top:0;text-align:left;padding:12px 16px;font-weight:500;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-bottom:1px solid var(--dsw-alias-border-l2);white-space:nowrap}
+.toy-table td{padding:12px 16px;border-bottom:1px solid var(--dsw-alias-border-l2);vertical-align:top}
 .toy-table tr:last-child td{border-bottom:none}
 .toy-table .toy-col-path{min-width:220px;max-width:420px}
 .toy-dialog{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.38)}
