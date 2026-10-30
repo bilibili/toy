@@ -102,8 +102,8 @@ Release steps:
 4. Push the matching tag:
 
    ```sh
-   git tag dsh-plugin-v0.1.3
-   git push origin dsh-plugin-v0.1.3
+   git tag dsh-plugin-v0.1.4
+   git push origin dsh-plugin-v0.1.4
    ```
 
 5. CI runs the same build/tests, packs the tarball and creates the GitHub

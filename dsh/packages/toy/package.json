@@ -1,6 +1,6 @@
 {
   "name": "@bilibili/dsh-toy",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A full Web UI and model tools for the Bilibili Toy creator CLI: browse and inspect your Toys, run the local package precheck, preview a publish, then explicitly confirm it for review. The skill is installed and updated through the skills CLI.",
   "type": "module",
   "main": "lib/index.js",
