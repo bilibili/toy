@@ -49,6 +49,14 @@ function stripAnsi(text) {
 }
 
 /**
+ * The JSON documents the toy CLI answers with that are not objects or arrays:
+ * Go marshals a nil slice as `null`, and a `--json` command may answer
+ * `true`/`false`. Bare numbers and strings stay text-like on purpose, so a
+ * prose answer that happens to look numeric is not taken for JSON.
+ */
+const JSON_LITERALS = new Set(['null', 'true', 'false'])
+
+/**
  * Parse a CLI stdout that should be one JSON document.
  * @param {string} text
  * @returns {{ found: boolean, value: unknown }}
@@ -56,9 +64,9 @@ function stripAnsi(text) {
 export function parseJsonOutput(text) {
   const trimmed = stripAnsi(text).trim()
   if (trimmed === '') return { found: false, value: undefined }
-  // `null` is a JSON document: `toy history` prints it when there are no local
-  // records, so it must not be mistaken for a text answer.
-  if (trimmed === 'null') return { found: true, value: null }
+  // A literal is a complete JSON document: `toy history` prints `null` when
+  // there are no local records, so it must not be mistaken for a text answer.
+  if (JSON_LITERALS.has(trimmed)) return { found: true, value: JSON.parse(trimmed) }
   if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return { found: false, value: undefined }
   try {
     return { found: true, value: JSON.parse(trimmed) }

@@ -22,6 +22,9 @@ function cli(extra = {}) {
 test('parses one JSON document and rejects prose', () => {
   assert.deepEqual(parseJsonOutput('{"uid":1}'), { found: true, value: { uid: 1 } })
   assert.deepEqual(parseJsonOutput('null'), { found: true, value: null })
+  assert.deepEqual(parseJsonOutput('true'), { found: true, value: true })
+  assert.deepEqual(parseJsonOutput('false'), { found: true, value: false })
+  assert.equal(parseJsonOutput('123').found, false)
   assert.equal(parseJsonOutput('登录成功\n').found, false)
   assert.equal(parseJsonOutput('').found, false)
 })
