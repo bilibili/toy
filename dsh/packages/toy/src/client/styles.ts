@@ -31,6 +31,7 @@ const CSS = `
 .toy-muted{color:var(--dsw-alias-label-tertiary)}
 .toy-caption{color:var(--dsw-alias-label-caption);font-size:11px}
 .toy-strong{font-weight:600}
+.toy-install-tabs{display:flex;flex-direction:column;gap:16px}
 .toy-tabs{display:flex;gap:2px;padding:3px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-layer-2);align-self:flex-start;flex-wrap:wrap}
 .toy-tab{appearance:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;padding:6px 14px;border-radius:var(--dsw-radius-md);cursor:pointer}
 .toy-tab:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
