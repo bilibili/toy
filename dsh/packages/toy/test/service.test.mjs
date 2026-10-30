@@ -179,6 +179,12 @@ test('history normalizes records and historyPaths deduplicates paths', async () 
   await assert.rejects(service().history('--yes'), /must not start with "-"/)
 })
 
+test('an empty local history (`null` from the CLI) lists no records', async () => {
+  const shared = service({ config: { env: { FAKE_TOY_HISTORY_EMPTY: '1' } } })
+  assert.deepEqual(await shared.history(''), [])
+  assert.deepEqual(await shared.historyPaths(), [])
+})
+
 test('precheck never uploads and reports blocking findings', async () => {
   const setup = await logConfig()
   const shared = service({ config: setup.config })

@@ -56,6 +56,9 @@ function stripAnsi(text) {
 export function parseJsonOutput(text) {
   const trimmed = stripAnsi(text).trim()
   if (trimmed === '') return { found: false, value: undefined }
+  // `null` is a JSON document: `toy history` prints it when there are no local
+  // records, so it must not be mistaken for a text answer.
+  if (trimmed === 'null') return { found: true, value: null }
   if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return { found: false, value: undefined }
   try {
     return { found: true, value: JSON.parse(trimmed) }
