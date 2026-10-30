@@ -16,7 +16,7 @@ import type { ReactNode } from 'react'
 import remote from '@bilibili/dsh-toy/remote'
 
 import type { ToyNamespace } from './api.ts'
-import { prefersChinese } from './i18n.ts'
+import { bindLocale } from './i18n.ts'
 import { ToyBundleSummary } from './BundleSummary.tsx'
 import { ToyPanel } from './ToyPanel.tsx'
 
@@ -95,6 +95,11 @@ function resolveOpenPanel(ctx: ClientContext): () => void {
 export async function apply(ctx: ClientContext): Promise<void> {
   const disposeMount = await ctx.remote.$mount(remote as unknown)
   ctx.effect(() => disposeMount, 'toy: remote mount')
+
+  // The locale service is optional: without it the copy falls back to the
+  // browser language. The context is kept so a service registered after this
+  // plugin is still sampled; the copy hooks re-render on a language switch.
+  ctx.effect(() => bindLocale(ctx), 'toy: locale binding')
 
   const namespace = ctx.get('remote.toyPublisher')
   if (namespace === undefined) {

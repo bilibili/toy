@@ -1,11 +1,22 @@
 /**
  * Page copy. Chinese is the primary language; anything else gets English.
- * The browser language is sampled once per page mount.
+ * The active locale comes from the DSH `locale` service, falling back to the
+ * browser language when the service is unavailable.
  */
 
-/** True when the browser prefers Chinese. */
-export function prefersChinese(): boolean {
-  return typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh')
+import { useSyncExternalStore } from 'react'
+
+import { createLocaleSource, isChineseLocale, prefersChinese } from './locale.js'
+
+/** The subset of the DSH `locale` service the page needs. */
+export interface LocaleService {
+  getLocale(): { readonly active?: string } | undefined
+  subscribe?(listener: () => void): () => void
+}
+
+/** The host context needed to look the locale service up. */
+export interface LocaleContext {
+  get(serviceKey: string): unknown
 }
 
 const ZH = {
@@ -546,8 +557,26 @@ const EN: typeof ZH = {
 /** The copy table the page uses. */
 export type Copy = typeof ZH
 
-/** Pick the copy table once per mount. */
-export function pickCopy(): { readonly copy: Copy; readonly zh: boolean } {
-  const zh = prefersChinese()
+/** Pick the copy table for an active locale tag. */
+export function pickCopy(active?: string): { readonly copy: Copy; readonly zh: boolean } {
+  const zh = typeof active === 'string' && active !== '' ? isChineseLocale(active) : prefersChinese()
   return { copy: zh ? ZH : EN, zh }
+}
+
+/** The page's locale source; `bindLocale` points it at the DSH `locale` service. */
+const localeSource = createLocaleSource()
+
+/**
+ * Follow the DSH locale service. The source re-resolves the service on every
+ * read and subscribes again when a late or replaced instance appears; returns
+ * a disposer that restores the browser fallback. Call it from `ctx.effect`.
+ */
+export function bindLocale(context: LocaleContext | undefined): () => void {
+  return localeSource.bind(context)
+}
+
+/** Copy for the current DSH locale; re-renders when the setting changes. */
+export function useCopy(): { readonly copy: Copy; readonly zh: boolean } {
+  const active = useSyncExternalStore(localeSource.subscribe, localeSource.snapshot, localeSource.snapshot)
+  return pickCopy(active)
 }

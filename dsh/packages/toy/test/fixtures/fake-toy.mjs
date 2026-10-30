@@ -112,6 +112,11 @@ if (argv[0] === 'stats') {
   process.exit(0)
 }
 if (argv[0] === 'history') {
+  if (process.env.FAKE_TOY_HISTORY_EMPTY === '1') {
+    // The real CLI marshals a nil record list as the JSON literal `null`.
+    process.stdout.write('null\n')
+    process.exit(0)
+  }
   process.stdout.write(`${JSON.stringify([{ id: 42, title: 'demo', path: '/tmp/demo', action: 'create' }])}\n`)
   process.exit(0)
 }

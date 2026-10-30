@@ -8,12 +8,12 @@
  * user actions in the Publish tab.
  */
 
-import { createElement as h, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createElement as h, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { call } from './api.ts'
 import type { Failure, ToyNamespace } from './api.ts'
-import { pickCopy } from './i18n.ts'
+import { useCopy } from './i18n.ts'
 import { HistoryView } from './HistoryView.tsx'
 import { PublishView } from './PublishView.tsx'
 import { SkillCard } from './SkillCard.tsx'
@@ -38,7 +38,7 @@ const PAGE_SIZE = 20
 
 /** The panel. `ns` is the mounted `remote.toyPublisher` namespace. */
 export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
-  const { copy, zh } = useMemo(() => pickCopy(), [])
+  const { copy, zh } = useCopy()
   useToyStyles()
 
   const [tab, setTab] = useState<Tab>('toys')

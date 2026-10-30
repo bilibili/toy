@@ -31,6 +31,7 @@ const CSS = `
 .toy-muted{color:var(--dsw-alias-label-tertiary)}
 .toy-caption{color:var(--dsw-alias-label-caption);font-size:11px}
 .toy-strong{font-weight:600}
+.toy-install-tabs{display:flex;flex-direction:column;gap:16px}
 .toy-tabs{display:flex;gap:2px;padding:3px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-layer-2);align-self:flex-start;flex-wrap:wrap}
 .toy-tab{appearance:none;border:none;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;padding:6px 14px;border-radius:var(--dsw-radius-md);cursor:pointer}
 .toy-tab:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
@@ -125,10 +126,10 @@ const CSS = `
 .toy-legend-dot{display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--dsw-alias-brand-primary);margin-right:4px;vertical-align:middle}
 .toy-legend-dot[data-series="uv"]{opacity:.45}
 .toy-chart-axis{display:flex;justify-content:space-between;font-size:10px;color:var(--dsw-alias-label-caption)}
-.toy-table-wrap{overflow:auto;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-layer-1)}
+.toy-table-wrap{overflow:auto;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-layer-1)}
 .toy-table{width:100%;border-collapse:collapse;font-size:12px}
-.toy-table th{position:sticky;top:0;text-align:left;padding:8px 10px;font-weight:500;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-bottom:1px solid var(--dsw-alias-border-l2);white-space:nowrap}
-.toy-table td{padding:8px 10px;border-bottom:1px solid var(--dsw-alias-border-l1);vertical-align:top}
+.toy-table th{position:sticky;top:0;text-align:left;padding:12px 16px;font-weight:500;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-bottom:1px solid var(--dsw-alias-border-l2);white-space:nowrap}
+.toy-table td{padding:12px 16px;border-bottom:1px solid var(--dsw-alias-border-l2);vertical-align:top}
 .toy-table tr:last-child td{border-bottom:none}
 .toy-table .toy-col-path{min-width:220px;max-width:420px}
 .toy-dialog{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.38)}

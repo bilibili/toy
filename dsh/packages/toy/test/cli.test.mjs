@@ -21,6 +21,10 @@ function cli(extra = {}) {
 
 test('parses one JSON document and rejects prose', () => {
   assert.deepEqual(parseJsonOutput('{"uid":1}'), { found: true, value: { uid: 1 } })
+  assert.deepEqual(parseJsonOutput('null'), { found: true, value: null })
+  assert.deepEqual(parseJsonOutput('true'), { found: true, value: true })
+  assert.deepEqual(parseJsonOutput('false'), { found: true, value: false })
+  assert.equal(parseJsonOutput('123').found, false)
   assert.equal(parseJsonOutput('登录成功\n').found, false)
   assert.equal(parseJsonOutput('').found, false)
 })
@@ -69,6 +73,12 @@ test('treats a text answer to a --json command as invalid output', async () => {
   const result = await cli({ env: { FAKE_TOY_ERROR: 'garbage' } }).runJson(['mylist'])
   assert.equal(result.ok, false)
   assert.equal(result.error.kind, 'invalid-output')
+})
+
+test('accepts the JSON null an empty `toy history` returns', async () => {
+  const result = await cli({ env: { FAKE_TOY_HISTORY_EMPTY: '1' } }).runJson(['history'])
+  assert.equal(result.ok, true)
+  assert.equal(result.data, null)
 })
 
 test('runs the human-facing login command without --json', async () => {
