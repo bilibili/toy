@@ -1,6 +1,6 @@
 ---
 name: toy
-description: "通过 Toy CLI 完成 B站 Toy 平台的创作者操作（发布 / 更新 / 预览 / 查询 / 视频绑定 / 排查）。触发词：Toy 发布、发布 Toy、toy create、上传 Toy、Toy 更新、toy update、改 Toy 封面、改 Toy 密码、Toy 预览、Toy 提交审核、我的 Toy、toy mylist、Toy 列表、Toy 统计、toy stats、Toy PV/UV、Toy 登录、toy login、Toy 发布记录、toy history、toy cli、Toy 白屏、Toy 404、Toy 页面打不开、Toy 资源路径、Toy slug、Toy 绑定视频、绑视频、解绑视频、toy video、Toy 绑了哪些视频、视频页挂 Toy 入口、toy video mine。当用户需要把本地前端项目/HTML/zip 发布或更新到 Toy 平台、查看自己的 Toy、看访问统计、把视频与 Toy 绑定或解绑、排查发布后页面白屏/资源 404，或管理本地发布记录时使用此 skill。"
+description: "通过 Toy CLI 完成 B站 Toy 平台的创作者操作（发布 / 更新 / 预览 / 查询 / 视频绑定 / 排查）。触发词：Toy 发布、发布 Toy、toy create、上传 Toy、Toy 更新、toy update、改 Toy 封面、改 Toy 密码、Toy 预览、Toy 提交审核、我的 Toy、toy mylist、Toy 列表、Toy 统计、toy stats、Toy PV/UV、Toy 登录、toy login、Toy 发布记录、toy history、toy cli、Toy 白屏、Toy 404、Toy 页面打不开、Toy 资源路径、Toy slug、Toy 绑定视频、绑视频、解绑视频、toy video、Toy 绑了哪些视频、视频页挂 Toy 入口、toy video mine、Toy 通知、我有什么通知、toy notify、入选今日推荐、入选每周必玩。当用户需要把本地前端项目/HTML/zip 发布或更新到 Toy 平台、查看自己的 Toy、看访问统计、把视频与 Toy 绑定或解绑、查创作者通知、排查发布后页面白屏/资源 404，或管理本地发布记录时使用此 skill。"
 license: MIT
 ---
 
@@ -116,6 +116,36 @@ toy login
 - `bind`/`unbind` 的 `--json` 只回显你传的那个标识，另一个为空是设计行为。
 - 解绑非破坏性（可以再绑回来），不必按铁律 5 确认；但解绑用户没点名的绑定关系要先问。
 
+### 7. 通知提醒：每次对话最多一次，顺带提、不打断
+
+平台会给作者发通知（入选今日推荐／每周必玩、审核未通过、作品处置及解除、能力申请结果、活动公告）。CLI 能查，但**提醒是你的事**，不是 CLI 的事 —— 它不会自己往终端喷提示。
+
+```bash
+toy notify --new --json
+```
+
+什么时候跑：**一次对话里最多一次**，且在用户要的事情**做完之后**。发布、更新、查列表、看统计这类主任务完成后顺手跑一次即可。
+
+不要在这些时候跑：
+
+- 主任务还没完成时（提醒不该插在发布流程中间）
+- 用户只是问问题、没动 CLI 时（没必要为此多跑一条命令）
+- 同一对话里已经跑过一次之后
+
+怎么说：`new_count` 为 0 就**什么都别说**。非 0 时用一两句话带过标题，并给出 `notification_url`，然后回到原来的话题。不要整段复述正文、不要做成一个新议题、不要追问用户要不要去看。
+
+```
+顺带一提：你有 2 条新通知（《像素小镇》入选今日推荐、能力申请已通过），
+完整内容在 https://www.bilibili.com/toy/publish/notifications
+```
+
+几条约束：
+
+- **查通知失败就当没查**。超时、报错、登录态问题一律跳过，不提、不重试、不把它说成一次失败 —— 它是附加品，不能影响用户本来要做的事。
+- **`--new` 会推进本机的「已提醒」进度**，所以同一条不会提醒两次。想看而不推进用 `--peek`，想看全部用不带 `--new` 的 `toy notify`。
+- **这个命令不会清未读**。作者在网页端看到的未读角标只有他真的打开通知页才会清，你查多少次都不动它。所以别跟用户说「我已经帮你标记已读了」。
+- 用户主动问「我有什么通知」时，跑不带 `--new` 的 `toy notify --json`（列最近的，不动提醒进度），这是查询不是提醒。
+
 ## 典型工作流
 
 工作流只锚定**命令名 + 业务步骤**，具体参数 / flag / 取值都用 `--help-json` 取，避免与 CLI 漂移。
@@ -184,5 +214,7 @@ toy login
 - 入口 index.html 超 1MB（doctor 报 ERROR）时不要硬传，也不要指望「先出个预览看看」—— preview 同样拦。先按清单 §8 改产出方式，或如实告诉用户这个包当前发不出去。
 - 不要默认创建/写入/维护 `toy.yaml`（本 skill 走官方 CLI 本地记录，`toy.yaml` 只做只读兼容）；也别把 `toy.yaml` 打进上传包。
 - 不要循环重试登录态失效；不要把 session token 写进任何输出。
+- 不要把通知提醒做成一个议题：`new_count` 为 0 时一个字都不说，非 0 时一两句带过就回到原话题（铁律 7）。也不要在同一对话里查第二次。
+- 不要说「已帮你标记已读」——`toy notify` 不清未读，网页端的角标不受它影响。
 - 不要对 `history clear` 这类破坏性命令未经确认就加 `--yes`。
 - 不要为绑定视频擅自解绑用户其他 Toy 上的绑定。
