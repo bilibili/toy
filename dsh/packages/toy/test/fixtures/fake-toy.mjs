@@ -103,18 +103,19 @@ if (argv[0] === 'whoami') {
 }
 if (argv[0] === 'mylist') {
   // With FAKE_TOY_MYLIST_TOTAL the fixture pages like the real service does:
-  // it echoes the requested pn/ps and answers with at most 50 items, so a
-  // page-size clamp and hasNext can be exercised end to end.
+  // it echoes the requested pn/ps, and a size above 50 falls back to the
+  // default 20 items — the trap the Host clamp exists to avoid.
   const paged = process.env.FAKE_TOY_MYLIST_TOTAL
   if (paged !== undefined) {
     const total = Number(paged)
     const page = Number(nextTo('--page') ?? 1)
-    const size = Math.min(Number(nextTo('--size') ?? 20), 50)
+    const requested = Number(nextTo('--size') ?? 20)
+    const size = requested > 50 ? 20 : requested
     const list = []
     for (let index = (page - 1) * size; index < Math.min(total, page * size); index += 1) {
       list.push({ id: 1000 + index, title: `toy-${index + 1}`, status: 'published', visibility: 'PUBLIC' })
     }
-    process.stdout.write(`${JSON.stringify({ total, pn: page, ps: size, list })}\n`)
+    process.stdout.write(`${JSON.stringify({ total, pn: page, ps: requested, list })}\n`)
     process.exit(0)
   }
   process.stdout.write(`${JSON.stringify({ total: 1, pn: 1, ps: 20, list: [{ id: 42, title: 'demo', status: 'published', visibility: 'PUBLIC' }] })}\n`)
