@@ -15,6 +15,8 @@ import { call } from './api.ts'
 import type { Failure, ToyNamespace } from './api.ts'
 import { useCopy } from './i18n.ts'
 import { HistoryView } from './HistoryView.tsx'
+import { slicePage } from './paging.js'
+import type { ToyCatalogue } from './paging.js'
 import { PublishView } from './PublishView.tsx'
 import { SkillCard } from './SkillCard.tsx'
 import type { PublishPrefill } from './PublishView.tsx'
@@ -40,27 +42,6 @@ const FETCH_SIZE = 50
 /** Safety stop for the catalogue load: 20 calls × 50 = 1000 Toys. */
 const MAX_FETCH_PAGES = 20
 
-/** Every Toy the account owns, as far as the Host could page through it. */
-interface Catalogue {
-  readonly total: number
-  readonly items: readonly ToySummary[]
-}
-
-/** The slice of the catalogue one grid page shows. */
-function pageOf(catalogue: Catalogue, pageNumber: number): ToyListPage {
-  const pages = Math.max(1, Math.ceil(catalogue.items.length / PAGE_SIZE))
-  const current = Math.min(Math.max(1, pageNumber), pages)
-  const start = (current - 1) * PAGE_SIZE
-  return {
-    total: catalogue.total,
-    page: current,
-    size: PAGE_SIZE,
-    pages,
-    hasNext: current < pages,
-    items: catalogue.items.slice(start, start + PAGE_SIZE),
-  }
-}
-
 /** The panel. `ns` is the mounted `remote.toyPublisher` namespace. */
 export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   const { copy, zh } = useCopy()
@@ -70,7 +51,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   const [account, setAccount] = useState<AccountView | undefined>(undefined)
   const [accountBusy, setAccountBusy] = useState(false)
   const [accountError, setAccountError] = useState<Failure | undefined>(undefined)
-  const [catalogue, setCatalogue] = useState<Catalogue | undefined>(undefined)
+  const [catalogue, setCatalogue] = useState<ToyCatalogue | undefined>(undefined)
   const [page, setPage] = useState(1)
   const [toysBusy, setToysBusy] = useState(false)
   const [toysError, setToysError] = useState<Failure | undefined>(undefined)
@@ -292,7 +273,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   const initial = account?.user !== undefined ? account.user.name.slice(0, 1).toUpperCase() : '?'
 
   /** What the grid shows; paging happens over the loaded catalogue. */
-  const toys = catalogue === undefined ? undefined : pageOf(catalogue, page)
+  const toys = catalogue === undefined ? undefined : slicePage(catalogue, page, PAGE_SIZE)
   /** The whole account, for the Toy pickers of Stats and Publish. */
   const allToys: ToyListPage | undefined = catalogue === undefined
     ? undefined
