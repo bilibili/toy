@@ -40,6 +40,10 @@ export interface ToyListPage {
   readonly total: number
   readonly page: number
   readonly size: number
+  /** Number of pages at `size` items each (at least 1). */
+  readonly pages: number
+  /** Whether a further page exists, computed from the reported `size`. */
+  readonly hasNext: boolean
   readonly items: readonly ToySummary[]
 }
 

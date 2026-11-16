@@ -199,6 +199,7 @@ export function StatsView({
             : h(Kpi, { label: copy.avgRetention, value: formatPercent(avgRetention), sub: copy.retentionLabel }),
         )
       : null,
+    !busy && items.length > 0 ? h('div', { className: 'toy-caption' }, copy.statsUvHint) : null,
     !busy
       ? h('div', { className: 'toy-panel' }, h(Chart, { copy, items }))
       : null,

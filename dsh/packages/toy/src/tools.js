@@ -22,6 +22,7 @@
  */
 
 import { packageFingerprint } from './precheck.js'
+import { MAX_PAGE_SIZE } from './host/service.js'
 
 const SUBMIT_LABEL = 'Submit for review'
 const CANCEL_LABEL = 'Not now'
@@ -251,13 +252,13 @@ export function registerLaunchTools(ctx, service) {
 
   register({
     name: 'toy_list',
-    description: 'List the Toys owned by the logged-in toy CLI account (toy mylist). Returns id, title, status, visibility, category, theme, watermark, poster/icon URLs and the shareable url for each. Use it to find the id needed by toy_stats / toy_publish / toy_update.',
+    description: `List the Toys owned by the logged-in toy CLI account (toy mylist). Returns id, title, status, visibility, category, theme, watermark, poster/icon URLs and the shareable url for each, plus total/pages/hasNext/nextPage. One call is one page only: the platform caps a page at ${MAX_PAGE_SIZE} entries (larger sizes are clamped), so when the user asks for every Toy keep calling with the SAME size and page: nextPage while hasNext is true. Changing the size between calls shifts the offset and skips entries. Use it to find the id needed by toy_stats / toy_publish / toy_update.`,
     parameters: {
       type: 'object',
       additionalProperties: false,
       properties: {
         page: { type: 'number', description: 'Page number, 1-based. Default 1.' },
-        size: { type: 'number', description: 'Page size. Default 20.' },
+        size: { type: 'number', description: `Page size. Default 20; values above the platform cap of ${MAX_PAGE_SIZE} are clamped to it.` },
       },
     },
     output: TOOL_OUTPUT,
@@ -265,13 +266,16 @@ export function registerLaunchTools(ctx, service) {
       const page = intOr(args.page, 1)
       const size = intOr(args.size, 20)
       if (page < 1) return failure('invalid-argument', 'page must be >= 1')
-      if (size < 1 || size > 100) return failure('invalid-argument', 'size must be between 1 and 100')
+      if (size < 1) return failure('invalid-argument', 'size must be >= 1')
       const data = await service.listToys(page, size)
       return {
         ok: true,
         total: data.total,
         page: data.page,
         size: data.size,
+        pages: data.pages,
+        hasNext: data.hasNext,
+        nextPage: data.hasNext ? data.page + 1 : null,
         items: data.items.map(item => ({
           id: item.id,
           title: item.title,

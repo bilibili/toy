@@ -88,8 +88,8 @@ service is unavailable it falls back to the browser language.
 
 | Tab | What you can do |
 |---|---|
-| **My Toys** | Poster/title/slug/id/status/visibility cards, refresh, select a Toy |
-| **Stats** | PV/UV bar chart, next-day retention, like/favorite/comment/share totals, 7/30/90-day windows |
+| **My Toys** | Every Toy in the account (read 50 per Host call, paged 20 per view; above 1000 the grid says so and keeps the first 1000), poster/title/slug/id/status/visibility cards, refresh, select a Toy |
+| **Stats** | PV/UV bar chart, next-day retention, like/favorite/comment/share totals, 7/30/90-day windows; the Toy picker lists the whole account, not just the visible page |
 | **Publish / Update** | create or update; package/poster/icon paths (history suggestions); title, slug (create only), category, visibility/password, theme, watermark, activity; local precheck with ERROR/WARN findings; **生成预览**; after the preview, an explicit "我已检查预览" step enables **提交审核** |
 | **History** | local publish/update records; clear-all behind a two-step confirmation |
 

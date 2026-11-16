@@ -15,6 +15,11 @@ if (process.env.FAKE_TOY_LOG !== undefined) {
 const json = argv.includes('--json')
 const has = name => argv.includes(name)
 const valueOf = name => argv.find(argument => argument.startsWith(`--${name}=`))?.split('=').slice(1).join('=')
+/** Value of a space-separated flag, e.g. `['--page', '2']`. */
+const nextTo = name => {
+  const index = argv.indexOf(name)
+  return index >= 0 ? argv[index + 1] : undefined
+}
 const emitted = []
 
 if (process.env.FAKE_TOY_SLEEP !== undefined) {
@@ -97,6 +102,25 @@ if (argv[0] === 'whoami') {
   process.exit(0)
 }
 if (argv[0] === 'mylist') {
+  // With FAKE_TOY_MYLIST_TOTAL the fixture pages like the real service does:
+  // it echoes the requested pn/ps, and a size above 50 falls back to the
+  // default 20 items — the trap the Host clamp exists to avoid.
+  const paged = process.env.FAKE_TOY_MYLIST_TOTAL
+  if (paged !== undefined) {
+    const total = Number(paged)
+    const page = Number(nextTo('--page') ?? 1)
+    const requested = Number(nextTo('--size') ?? 20)
+    const size = requested > 50 ? 20 : requested
+    const list = []
+    for (let index = (page - 1) * size; index < Math.min(total, page * size); index += 1) {
+      list.push({ id: 1000 + index, title: `toy-${index + 1}`, status: 'published', visibility: 'PUBLIC' })
+    }
+    const payload = { total, pn: page, ps: requested, list }
+    // FAKE_TOY_MYLIST_NO_TOTAL models a CLI build that does not report a total.
+    if (process.env.FAKE_TOY_MYLIST_NO_TOTAL === '1') delete payload.total
+    process.stdout.write(`${JSON.stringify(payload)}\n`)
+    process.exit(0)
+  }
   process.stdout.write(`${JSON.stringify({ total: 1, pn: 1, ps: 20, list: [{ id: 42, title: 'demo', status: 'published', visibility: 'PUBLIC' }] })}\n`)
   process.exit(0)
 }

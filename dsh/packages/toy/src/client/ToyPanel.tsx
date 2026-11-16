@@ -15,6 +15,8 @@ import { call } from './api.ts'
 import type { Failure, ToyNamespace } from './api.ts'
 import { useCopy } from './i18n.ts'
 import { HistoryView } from './HistoryView.tsx'
+import { slicePage } from './paging.js'
+import type { ToyCatalogue } from './paging.js'
 import { PublishView } from './PublishView.tsx'
 import { SkillCard } from './SkillCard.tsx'
 import type { PublishPrefill } from './PublishView.tsx'
@@ -33,8 +35,12 @@ import type {
 
 type Tab = 'toys' | 'stats' | 'publish' | 'history'
 
-/** Toys per list page. */
+/** Toys per grid page. */
 const PAGE_SIZE = 20
+/** Cards requested per Host call; the platform caps a `mylist` page at 50. */
+const FETCH_SIZE = 50
+/** Safety stop for the catalogue load: 20 calls × 50 = 1000 Toys. */
+const MAX_FETCH_PAGES = 20
 
 /** The panel. `ns` is the mounted `remote.toyPublisher` namespace. */
 export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
@@ -45,7 +51,8 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   const [account, setAccount] = useState<AccountView | undefined>(undefined)
   const [accountBusy, setAccountBusy] = useState(false)
   const [accountError, setAccountError] = useState<Failure | undefined>(undefined)
-  const [toys, setToys] = useState<ToyListPage | undefined>(undefined)
+  const [catalogue, setCatalogue] = useState<ToyCatalogue | undefined>(undefined)
+  const [page, setPage] = useState(1)
   const [toysBusy, setToysBusy] = useState(false)
   const [toysError, setToysError] = useState<Failure | undefined>(undefined)
   const [selected, setSelected] = useState<ToySummary | undefined>(undefined)
@@ -104,8 +111,9 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     setUpgradeOpen(true)
   }, [ns, copy])
 
-  const pageRef = useRef(1)
   const nonceRef = useRef(0)
+  /** Generation of the running catalogue load; stale runs drop their results. */
+  const loadSeq = useRef(0)
 
   const loadAccount = useCallback(async (): Promise<void> => {
     setAccountBusy(true)
@@ -145,29 +153,49 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     setCliBusy(false)
   }, [ns, copy, loadAccount])
 
-  const loadToys = useCallback(
-    async (page: number): Promise<void> => {
-      setToysBusy(true)
-      setToysError(undefined)
-      const outcome = await call<ToyListPage>('listToys', () => ns.listToys(page, PAGE_SIZE))
-      setToysBusy(false)
+  /**
+   * Read the whole account once: page through `mylist` and keep every card, so
+   * the grid pages locally and the Stats / Publish pickers can reach a Toy that
+   * is not on the visible page.
+   */
+  const loadToys = useCallback(async (): Promise<void> => {
+    // Only the newest run may touch the grid: login, submit and refresh can
+    // overlap, and a slower older run must not overwrite newer cards.
+    loadSeq.current += 1
+    const seq = loadSeq.current
+    setToysBusy(true)
+    setToysError(undefined)
+    const byId = new Map<number, ToySummary>()
+    let total = 0
+    let failure: Failure | undefined
+    for (let index = 1; index <= MAX_FETCH_PAGES; index += 1) {
+      const outcome = await call<ToyListPage>('listToys', () => ns.listToys(index, FETCH_SIZE))
+      if (seq !== loadSeq.current) return
       if (!outcome.ok) {
-        setToysError(outcome.failure)
-        return
+        failure = outcome.failure
+        break
       }
-      pageRef.current = page
-      setToys(outcome.value)
-      const items = outcome.value.items
-      setSelected((current) =>
-        current === undefined ? undefined : items.find((toy) => toy.id === current.id) ?? current,
-      )
-    },
-    [ns],
-  )
+      total = outcome.value.total
+      for (const toy of outcome.value.items) byId.set(toy.id, toy)
+      if (!outcome.value.hasNext || outcome.value.items.length === 0) break
+    }
+    setToysBusy(false)
+    if (failure !== undefined) {
+      setToysError(failure)
+      return
+    }
+    const items = [...byId.values()]
+    const accountTotal = Math.max(total, items.length)
+    setCatalogue({ total: accountTotal, items, truncated: items.length < accountTotal })
+    setPage((current) => Math.min(Math.max(1, current), Math.max(1, Math.ceil(items.length / PAGE_SIZE))))
+    setSelected((current) =>
+      current === undefined ? undefined : items.find((toy) => toy.id === current.id) ?? current,
+    )
+  }, [ns])
 
   useEffect(() => {
     void loadAccount()
-    void loadToys(1)
+    void loadToys()
   }, [loadAccount, loadToys])
 
   useEffect(() => {
@@ -198,7 +226,9 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     }
     if (value.loggedIn) {
       setNote(copy.loginDone)
-      void loadToys(1)
+      // A login may be a different account: start from its first page.
+      setPage(1)
+      void loadToys()
     } else {
       setNote(value.hint ?? copy.loginPending)
     }
@@ -215,12 +245,19 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     }
     setAccount(outcome.value)
     if (outcome.value.error !== undefined) setAccountError(outcome.value.error)
+    // The catalogue belongs to the account that just logged out.
+    loadSeq.current += 1
+    setCatalogue(undefined)
+    setSelected(undefined)
+    setPage(1)
+    setToysBusy(false)
+    setToysError(undefined)
     setNote(copy.logoutDone)
   }, [ns, copy.logoutDone])
 
   const refreshAll = useCallback((): void => {
     void loadAccount()
-    void loadToys(pageRef.current)
+    void loadToys()
   }, [loadAccount, loadToys])
 
   const selectToy = useCallback((toy: ToySummary) => setSelected(toy), [])
@@ -252,6 +289,20 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   const binaryMissing = accountError?.kind === 'binary-missing'
     || (account?.ok === false && account.error?.kind === 'binary-missing')
   const initial = account?.user !== undefined ? account.user.name.slice(0, 1).toUpperCase() : '?'
+
+  /** What the grid shows; paging happens over the loaded catalogue. */
+  const toys = catalogue === undefined ? undefined : slicePage(catalogue, page, PAGE_SIZE)
+  /** The whole account, for the Toy pickers of Stats and Publish. */
+  const allToys: ToyListPage | undefined = catalogue === undefined
+    ? undefined
+    : {
+        total: catalogue.total,
+        page: 1,
+        size: catalogue.items.length,
+        pages: 1,
+        hasNext: false,
+        items: catalogue.items,
+      }
 
   const tabs: readonly { readonly id: Tab; readonly label: string }[] = [
     { id: 'toys', label: copy.tabToys },
@@ -454,11 +505,12 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
                 busy: toysBusy,
                 error: toysError,
                 selected,
-                onRefresh: () => void loadToys(pageRef.current),
+                loaded: catalogue === undefined ? undefined : catalogue.items.length,
+                onRefresh: () => void loadToys(),
                 onSelect: selectToy,
                 onOpenStats: openStats,
                 onUpdate: startUpdate,
-                onPage: (page) => void loadToys(page),
+                onPage: setPage,
               }),
             ),
             h(
@@ -467,7 +519,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
               h(StatsView, {
                 copy,
                 ns,
-                toys,
+                toys: allToys,
                 selected,
                 active: tab === 'stats',
                 onSelectToy: selectToy,
@@ -480,10 +532,14 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
                 copy,
                 zh,
                 ns,
-                toys,
+                toys: allToys,
                 prefill,
                 active: tab === 'publish',
-                onSubmitted: () => void loadToys(pageRef.current),
+                onSubmitted: () => {
+                  // A new/updated Toy sorts first: show it once the list reloads.
+                  setPage(1)
+                  void loadToys()
+                },
                 onNotify: notify,
                 onGoToToys: () => setTab('toys'),
               }),
