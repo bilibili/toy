@@ -33,8 +33,33 @@ import type {
 
 type Tab = 'toys' | 'stats' | 'publish' | 'history'
 
-/** Toys per list page. */
+/** Toys per grid page. */
 const PAGE_SIZE = 20
+/** Cards requested per Host call; the platform caps a `mylist` page at 50. */
+const FETCH_SIZE = 50
+/** Safety stop for the catalogue load: 20 calls × 50 = 1000 Toys. */
+const MAX_FETCH_PAGES = 20
+
+/** Every Toy the account owns, as far as the Host could page through it. */
+interface Catalogue {
+  readonly total: number
+  readonly items: readonly ToySummary[]
+}
+
+/** The slice of the catalogue one grid page shows. */
+function pageOf(catalogue: Catalogue, pageNumber: number): ToyListPage {
+  const pages = Math.max(1, Math.ceil(catalogue.items.length / PAGE_SIZE))
+  const current = Math.min(Math.max(1, pageNumber), pages)
+  const start = (current - 1) * PAGE_SIZE
+  return {
+    total: catalogue.total,
+    page: current,
+    size: PAGE_SIZE,
+    pages,
+    hasNext: current < pages,
+    items: catalogue.items.slice(start, start + PAGE_SIZE),
+  }
+}
 
 /** The panel. `ns` is the mounted `remote.toyPublisher` namespace. */
 export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
@@ -45,7 +70,8 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   const [account, setAccount] = useState<AccountView | undefined>(undefined)
   const [accountBusy, setAccountBusy] = useState(false)
   const [accountError, setAccountError] = useState<Failure | undefined>(undefined)
-  const [toys, setToys] = useState<ToyListPage | undefined>(undefined)
+  const [catalogue, setCatalogue] = useState<Catalogue | undefined>(undefined)
+  const [page, setPage] = useState(1)
   const [toysBusy, setToysBusy] = useState(false)
   const [toysError, setToysError] = useState<Failure | undefined>(undefined)
   const [selected, setSelected] = useState<ToySummary | undefined>(undefined)
@@ -104,7 +130,6 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     setUpgradeOpen(true)
   }, [ns, copy])
 
-  const pageRef = useRef(1)
   const nonceRef = useRef(0)
 
   const loadAccount = useCallback(async (): Promise<void> => {
@@ -145,29 +170,42 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     setCliBusy(false)
   }, [ns, copy, loadAccount])
 
-  const loadToys = useCallback(
-    async (page: number): Promise<void> => {
-      setToysBusy(true)
-      setToysError(undefined)
-      const outcome = await call<ToyListPage>('listToys', () => ns.listToys(page, PAGE_SIZE))
-      setToysBusy(false)
+  /**
+   * Read the whole account once: page through `mylist` and keep every card, so
+   * the grid pages locally and the Stats / Publish pickers can reach a Toy that
+   * is not on the visible page.
+   */
+  const loadToys = useCallback(async (): Promise<void> => {
+    setToysBusy(true)
+    setToysError(undefined)
+    const byId = new Map<number, ToySummary>()
+    let total = 0
+    let failure: Failure | undefined
+    for (let index = 1; index <= MAX_FETCH_PAGES; index += 1) {
+      const outcome = await call<ToyListPage>('listToys', () => ns.listToys(index, FETCH_SIZE))
       if (!outcome.ok) {
-        setToysError(outcome.failure)
-        return
+        failure = outcome.failure
+        break
       }
-      pageRef.current = page
-      setToys(outcome.value)
-      const items = outcome.value.items
-      setSelected((current) =>
-        current === undefined ? undefined : items.find((toy) => toy.id === current.id) ?? current,
-      )
-    },
-    [ns],
-  )
+      total = outcome.value.total
+      for (const toy of outcome.value.items) byId.set(toy.id, toy)
+      if (!outcome.value.hasNext || outcome.value.items.length === 0) break
+    }
+    setToysBusy(false)
+    if (failure !== undefined) {
+      setToysError(failure)
+      return
+    }
+    const items = [...byId.values()]
+    setCatalogue({ total: Math.max(total, items.length), items })
+    setSelected((current) =>
+      current === undefined ? undefined : items.find((toy) => toy.id === current.id) ?? current,
+    )
+  }, [ns])
 
   useEffect(() => {
     void loadAccount()
-    void loadToys(1)
+    void loadToys()
   }, [loadAccount, loadToys])
 
   useEffect(() => {
@@ -198,7 +236,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     }
     if (value.loggedIn) {
       setNote(copy.loginDone)
-      void loadToys(1)
+      void loadToys()
     } else {
       setNote(value.hint ?? copy.loginPending)
     }
@@ -220,7 +258,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
 
   const refreshAll = useCallback((): void => {
     void loadAccount()
-    void loadToys(pageRef.current)
+    void loadToys()
   }, [loadAccount, loadToys])
 
   const selectToy = useCallback((toy: ToySummary) => setSelected(toy), [])
@@ -252,6 +290,20 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   const binaryMissing = accountError?.kind === 'binary-missing'
     || (account?.ok === false && account.error?.kind === 'binary-missing')
   const initial = account?.user !== undefined ? account.user.name.slice(0, 1).toUpperCase() : '?'
+
+  /** What the grid shows; paging happens over the loaded catalogue. */
+  const toys = catalogue === undefined ? undefined : pageOf(catalogue, page)
+  /** The whole account, for the Toy pickers of Stats and Publish. */
+  const allToys: ToyListPage | undefined = catalogue === undefined
+    ? undefined
+    : {
+        total: catalogue.total,
+        page: 1,
+        size: catalogue.items.length,
+        pages: 1,
+        hasNext: false,
+        items: catalogue.items,
+      }
 
   const tabs: readonly { readonly id: Tab; readonly label: string }[] = [
     { id: 'toys', label: copy.tabToys },
@@ -454,11 +506,11 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
                 busy: toysBusy,
                 error: toysError,
                 selected,
-                onRefresh: () => void loadToys(pageRef.current),
+                onRefresh: () => void loadToys(),
                 onSelect: selectToy,
                 onOpenStats: openStats,
                 onUpdate: startUpdate,
-                onPage: (page) => void loadToys(page),
+                onPage: setPage,
               }),
             ),
             h(
@@ -467,7 +519,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
               h(StatsView, {
                 copy,
                 ns,
-                toys,
+                toys: allToys,
                 selected,
                 active: tab === 'stats',
                 onSelectToy: selectToy,
@@ -480,10 +532,14 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
                 copy,
                 zh,
                 ns,
-                toys,
+                toys: allToys,
                 prefill,
                 active: tab === 'publish',
-                onSubmitted: () => void loadToys(pageRef.current),
+                onSubmitted: () => {
+                  // A new/updated Toy sorts first: show it once the list reloads.
+                  setPage(1)
+                  void loadToys()
+                },
                 onNotify: notify,
                 onGoToToys: () => setTab('toys'),
               }),

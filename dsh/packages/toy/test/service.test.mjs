@@ -138,12 +138,35 @@ test('listToys normalizes the mylist page', async () => {
   // The fixture echoes pn=1/ps=20 regardless of the requested page.
   assert.equal(page.page, 1)
   assert.equal(page.size, 20)
+  assert.equal(page.pages, 1)
+  assert.equal(page.hasNext, false)
   assert.equal(page.items.length, 1)
   const item = page.items[0]
   assert.equal(item.id, 42)
   assert.equal(item.title, 'demo')
   assert.equal(item.status, 'published')
   assert.equal(item.visibility, 'public')
+})
+
+test('listToys clamps the page size to the platform cap and reports honest paging', async () => {
+  const setup = await logConfig({ env: { FAKE_TOY_MYLIST_TOTAL: '120' } })
+  const shared = service({ config: setup.config })
+  // Above 50 the platform answers with a short page while echoing the
+  // requested size, so the request itself is clamped.
+  const first = await shared.listToys(1, 200)
+  assert.equal(first.total, 120)
+  assert.equal(first.page, 1)
+  assert.equal(first.size, 50)
+  assert.equal(first.pages, 3)
+  assert.equal(first.hasNext, true)
+  assert.equal(first.items.length, 50)
+  const last = await shared.listToys(3, 50)
+  assert.equal(last.page, 3)
+  assert.equal(last.items.length, 20)
+  assert.equal(last.hasNext, false)
+  const argv = await readArgv(setup.log)
+  assert.deepEqual(argv[0].slice(0, 5), ['mylist', '--page', '1', '--size', '50'])
+  await assert.rejects(shared.listToys(1, 0), /size must be >= 1/)
 })
 
 test('listToys refuses an impossible page and preserves CLI error kinds', async () => {

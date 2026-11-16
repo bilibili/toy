@@ -189,9 +189,11 @@ export function ToysView({
   const items = page?.items ?? []
   const total = page?.total ?? 0
   const pageNumber = page?.page ?? 1
-  const pageSize = page?.size ?? items.length
+  const pageCount = page?.pages ?? 1
   const hasPrev = pageNumber > 1
-  const hasNext = pageSize > 0 && pageNumber * pageSize < total
+  // The Host computes this from the page size it actually served, so a page
+  // truncated by the platform cannot silently look like the last one.
+  const hasNext = page?.hasNext === true
   return h(
     'div',
     { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
@@ -220,15 +222,7 @@ export function ToysView({
             }),
           ),
         ),
-    selected === undefined
-      ? null
-      : h(ToyDetail, {
-          toy: selected,
-          copy,
-          zh,
-          onOpenStats: () => onOpenStats(selected),
-          onUpdate: () => onUpdate(selected),
-        }),
+    // Above the detail card: a long detail panel must not hide the pager.
     total > 0
       ? h(
           Toolbar,
@@ -239,7 +233,7 @@ export function ToysView({
             h(Icon, { name: 'chevronLeft' }),
             copy.pagePrev,
           ),
-          h('span', { className: 'toy-caption' }, copy.pageLabel(pageNumber, total)),
+          h('span', { className: 'toy-caption' }, copy.pageLabel(pageNumber, pageCount, total)),
           h(
             Button,
             { onClick: () => onPage(pageNumber + 1), disabled: busy || !hasNext, size: 'sm' },
@@ -248,5 +242,14 @@ export function ToysView({
           ),
         )
       : null,
+    selected === undefined
+      ? null
+      : h(ToyDetail, {
+          toy: selected,
+          copy,
+          zh,
+          onOpenStats: () => onOpenStats(selected),
+          onUpdate: () => onUpdate(selected),
+        }),
   )
 }

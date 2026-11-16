@@ -38,6 +38,14 @@ function intOr(value, fallback) {
   return typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : fallback
 }
 
+/**
+ * Largest `toy mylist --size` the platform honours. Any larger value comes back
+ * echoing the requested `ps` while containing at most the default 20 items, so
+ * a caller that trusts `size` believes it has the whole list. Clamp the request
+ * instead, so `size`, `pages` and `hasNext` stay honest.
+ */
+export const MAX_PAGE_SIZE = 50
+
 /** Map the server's uppercase visibility enum to the lowercase create flag. */
 function normalizeVisibility(value) {
   if (typeof value !== 'string') return null
@@ -400,21 +408,31 @@ export function createToyService(config, logger = {}) {
     /**
      * One page of my Toys.
      * @param {number} page
-     * @param {number} size
+     * @param {number} size clamped to {@link MAX_PAGE_SIZE}
      * @returns {Promise<import('../shared/types.ts').ToyListPage>}
      */
     async listToys(page, size) {
       const pageNumber = intOr(page, 1)
-      const pageSize = intOr(size, 20)
+      const requested = intOr(size, 20)
       if (pageNumber < 1) throw new Error('page must be >= 1')
+      if (requested < 1) throw new Error('size must be >= 1')
+      const pageSize = Math.min(requested, MAX_PAGE_SIZE)
       const result = await cli.runJson(['mylist', '--page', String(pageNumber), '--size', String(pageSize)])
       if (!result.ok) throw throwCli(result, 'mylist failed')
       const data = result.data ?? {}
       const list = Array.isArray(data.list) ? data.list : []
+      const total = Number(data.total ?? list.length)
+      const reportedPage = Number(data.pn ?? pageNumber)
+      const reportedSize = Number(data.ps ?? pageSize)
+      // The CLI reports the page it actually served (pn/ps), which is what the
+      // next call and the pager have to be computed from.
+      const hasNext = list.length > 0 && reportedSize > 0 && reportedPage * reportedSize < total
       return {
-        total: Number(data.total ?? list.length),
-        page: Number(data.pn ?? pageNumber),
-        size: Number(data.ps ?? pageSize),
+        total,
+        page: reportedPage,
+        size: reportedSize,
+        pages: reportedSize > 0 ? Math.max(1, Math.ceil(total / reportedSize)) : 1,
+        hasNext,
         items: list.map(toToySummary),
       }
     },

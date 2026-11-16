@@ -111,7 +111,7 @@ const ZH = {
   toysHint: '点击卡片查看详情；选中后可查看统计或直接进入更新。',
   pagePrev: '上一页',
   pageNext: '下一页',
-  pageLabel: (page: number, total: number) => `第 ${page} 页 · 共 ${total} 个`,
+  pageLabel: (page: number, pages: number, total: number) => `第 ${page} / ${pages} 页 · 共 ${total} 个`,
   detailTitle: '详情',
   openToyPage: '打开 Toy 页面',
   viewStats: '查看统计',
@@ -156,6 +156,7 @@ const ZH = {
   commentLabel: '评论',
   shareLabel: '分享',
   statsRangeHint: '统计窗口截止到昨天，由 toy CLI 返回。',
+  statsUvHint: 'PV 是区间合计；UV 按天去重，跨天不可直接相加。',
   dayTooltip: (date: string, pv: number, uv: number, retention?: number) =>
     retention === undefined ? `${date} · PV ${pv} · UV ${uv}` : `${date} · PV ${pv} · UV ${uv} · 留存 ${retention}%`,
 
@@ -379,7 +380,7 @@ const EN: typeof ZH = {
   toysHint: 'Click a card for details; a selected Toy can be inspected in Stats or opened for an update.',
   pagePrev: 'Previous',
   pageNext: 'Next',
-  pageLabel: (page: number, total: number) => `Page ${page} · ${total} total`,
+  pageLabel: (page: number, pages: number, total: number) => `Page ${page} of ${pages} · ${total} total`,
   detailTitle: 'Details',
   openToyPage: 'Open Toy page',
   viewStats: 'View stats',
@@ -423,6 +424,7 @@ const EN: typeof ZH = {
   commentLabel: 'Comments',
   shareLabel: 'Shares',
   statsRangeHint: 'The window ends yesterday, as reported by the toy CLI.',
+  statsUvHint: 'PV is summed over the window; UV is deduplicated per day, so daily UV values do not add up across days.',
   dayTooltip: (date: string, pv: number, uv: number, retention?: number) =>
     retention === undefined ? `${date} · PV ${pv} · UV ${uv}` : `${date} · PV ${pv} · UV ${uv} · retention ${retention}%`,
 
