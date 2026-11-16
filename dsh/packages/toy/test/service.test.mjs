@@ -169,6 +169,30 @@ test('listToys clamps the page size to the platform cap and reports honest pagin
   await assert.rejects(shared.listToys(1, 0), /size must be >= 1/)
 })
 
+test('listToys keeps paging when the CLI reports no total', async () => {
+  const shared = service({ config: { env: { FAKE_TOY_MYLIST_TOTAL: '120', FAKE_TOY_MYLIST_NO_TOTAL: '1' } } })
+  // A full page is the only "there may be more" hint available; treating the
+  // item count as the total would call a truncated list complete.
+  const first = await shared.listToys(1, 50)
+  assert.equal(first.items.length, 50)
+  assert.equal(first.total, 50)
+  assert.equal(first.pages, 2)
+  assert.equal(first.hasNext, true)
+  const last = await shared.listToys(3, 50)
+  assert.equal(last.items.length, 20)
+  assert.equal(last.hasNext, false)
+})
+
+test('listToys does not advertise a next page on an exact multiple', async () => {
+  const shared = service({ config: { env: { FAKE_TOY_MYLIST_TOTAL: '100' } } })
+  const second = await shared.listToys(2, 50)
+  assert.equal(second.total, 100)
+  assert.equal(second.pages, 2)
+  assert.equal(second.page, 2)
+  assert.equal(second.items.length, 50)
+  assert.equal(second.hasNext, false)
+})
+
 test('listToys refuses an impossible page and preserves CLI error kinds', async () => {
   await assert.rejects(service().listToys(0, 20), /page must be >= 1/)
   await rejectsCli(service({ config: { env: { FAKE_TOY_ERROR: 'login' } } }).listToys(1, 20), 'login-expired')

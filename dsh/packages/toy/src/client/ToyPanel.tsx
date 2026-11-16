@@ -112,6 +112,8 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   }, [ns, copy])
 
   const nonceRef = useRef(0)
+  /** Generation of the running catalogue load; stale runs drop their results. */
+  const loadSeq = useRef(0)
 
   const loadAccount = useCallback(async (): Promise<void> => {
     setAccountBusy(true)
@@ -157,6 +159,10 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
    * is not on the visible page.
    */
   const loadToys = useCallback(async (): Promise<void> => {
+    // Only the newest run may touch the grid: login, submit and refresh can
+    // overlap, and a slower older run must not overwrite newer cards.
+    loadSeq.current += 1
+    const seq = loadSeq.current
     setToysBusy(true)
     setToysError(undefined)
     const byId = new Map<number, ToySummary>()
@@ -164,6 +170,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     let failure: Failure | undefined
     for (let index = 1; index <= MAX_FETCH_PAGES; index += 1) {
       const outcome = await call<ToyListPage>('listToys', () => ns.listToys(index, FETCH_SIZE))
+      if (seq !== loadSeq.current) return
       if (!outcome.ok) {
         failure = outcome.failure
         break
@@ -178,7 +185,9 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
       return
     }
     const items = [...byId.values()]
-    setCatalogue({ total: Math.max(total, items.length), items })
+    const accountTotal = Math.max(total, items.length)
+    setCatalogue({ total: accountTotal, items, truncated: items.length < accountTotal })
+    setPage((current) => Math.min(Math.max(1, current), Math.max(1, Math.ceil(items.length / PAGE_SIZE))))
     setSelected((current) =>
       current === undefined ? undefined : items.find((toy) => toy.id === current.id) ?? current,
     )
@@ -217,6 +226,8 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     }
     if (value.loggedIn) {
       setNote(copy.loginDone)
+      // A login may be a different account: start from its first page.
+      setPage(1)
       void loadToys()
     } else {
       setNote(value.hint ?? copy.loginPending)
@@ -234,6 +245,13 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     }
     setAccount(outcome.value)
     if (outcome.value.error !== undefined) setAccountError(outcome.value.error)
+    // The catalogue belongs to the account that just logged out.
+    loadSeq.current += 1
+    setCatalogue(undefined)
+    setSelected(undefined)
+    setPage(1)
+    setToysBusy(false)
+    setToysError(undefined)
     setNote(copy.logoutDone)
   }, [ns, copy.logoutDone])
 
@@ -487,6 +505,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
                 busy: toysBusy,
                 error: toysError,
                 selected,
+                loaded: catalogue === undefined ? undefined : catalogue.items.length,
                 onRefresh: () => void loadToys(),
                 onSelect: selectToy,
                 onOpenStats: openStats,

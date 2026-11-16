@@ -115,7 +115,10 @@ if (argv[0] === 'mylist') {
     for (let index = (page - 1) * size; index < Math.min(total, page * size); index += 1) {
       list.push({ id: 1000 + index, title: `toy-${index + 1}`, status: 'published', visibility: 'PUBLIC' })
     }
-    process.stdout.write(`${JSON.stringify({ total, pn: page, ps: requested, list })}\n`)
+    const payload = { total, pn: page, ps: requested, list }
+    // FAKE_TOY_MYLIST_NO_TOTAL models a CLI build that does not report a total.
+    if (process.env.FAKE_TOY_MYLIST_NO_TOTAL === '1') delete payload.total
+    process.stdout.write(`${JSON.stringify(payload)}\n`)
     process.exit(0)
   }
   process.stdout.write(`${JSON.stringify({ total: 1, pn: 1, ps: 20, list: [{ id: 42, title: 'demo', status: 'published', visibility: 'PUBLIC' }] })}\n`)

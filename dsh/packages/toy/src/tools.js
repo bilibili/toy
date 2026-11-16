@@ -252,7 +252,7 @@ export function registerLaunchTools(ctx, service) {
 
   register({
     name: 'toy_list',
-    description: 'List the Toys owned by the logged-in toy CLI account (toy mylist). Returns id, title, status, visibility, category, theme, watermark, poster/icon URLs and the shareable url for each, plus total/pages/hasNext/nextPage. One call is one page only: the platform caps a page at 50 entries (larger sizes are clamped), so keep calling with nextPage while hasNext is true when the user asks for every Toy. Use it to find the id needed by toy_stats / toy_publish / toy_update.',
+    description: `List the Toys owned by the logged-in toy CLI account (toy mylist). Returns id, title, status, visibility, category, theme, watermark, poster/icon URLs and the shareable url for each, plus total/pages/hasNext/nextPage. One call is one page only: the platform caps a page at ${MAX_PAGE_SIZE} entries (larger sizes are clamped), so when the user asks for every Toy keep calling with the SAME size and page: nextPage while hasNext is true. Changing the size between calls shifts the offset and skips entries. Use it to find the id needed by toy_stats / toy_publish / toy_update.`,
     parameters: {
       type: 'object',
       additionalProperties: false,

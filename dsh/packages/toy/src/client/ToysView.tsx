@@ -9,7 +9,7 @@ import type { ReactNode } from 'react'
 import type { Failure } from './api.ts'
 import { formatUnixTime, statusTone, toyPageUrl, visibilityLabel } from './api.ts'
 import type { Copy } from './i18n.ts'
-import { Badge, Button, Empty, FailureBanner, Icon, Loading, SectionHead, Toolbar } from './ui.tsx'
+import { Badge, Button, Empty, FailureBanner, Icon, Loading, SectionHead } from './ui.tsx'
 import type { ToyListPage, ToySummary } from '../shared/types.ts'
 
 /** Poster with a graceful fallback when the CDN image fails or is absent. */
@@ -166,6 +166,7 @@ export function ToysView({
   busy,
   error,
   selected,
+  loaded,
   onRefresh,
   onSelect,
   onOpenStats,
@@ -178,6 +179,8 @@ export function ToysView({
   readonly busy: boolean
   readonly error: Failure | undefined
   readonly selected: ToySummary | undefined
+  /** How many cards the panel actually loaded; below `total` means truncated. */
+  readonly loaded?: number
   /** Kept for symmetry with the other views; the grid is always mounted. */
   readonly active?: boolean
   readonly onRefresh: () => void
@@ -191,8 +194,7 @@ export function ToysView({
   const pageNumber = page?.page ?? 1
   const pageCount = page?.pages ?? 1
   const hasPrev = pageNumber > 1
-  // The Host computes this from the page size it actually served, so a page
-  // truncated by the platform cannot silently look like the last one.
+  // Computed from the loaded cards: the last page never advertises a next one.
   const hasNext = page?.hasNext === true
   return h(
     'div',
@@ -203,6 +205,9 @@ export function ToysView({
       actions: h(Button, { onClick: onRefresh, disabled: busy, title: copy.refreshToys }, h(Icon, { name: 'refresh' }), busy ? copy.loading : copy.refresh),
     }),
     h('div', { className: 'toy-caption' }, copy.toysHint),
+    loaded === undefined || loaded >= total
+      ? null
+      : h('div', { className: 'toy-caption' }, copy.toysTruncated(loaded, total)),
     error === undefined ? null : h(FailureBanner, { failure: error, copy }),
     busy && page === undefined ? h(Loading, { label: copy.toysLoading }) : null,
     page !== undefined && items.length === 0 ? h(Empty, {}, copy.toysEmpty) : null,
@@ -225,15 +230,15 @@ export function ToysView({
     // Above the detail card: a long detail panel must not hide the pager.
     total > 0
       ? h(
-          Toolbar,
-          {},
+          'nav',
+          { className: 'toy-toolbar', 'aria-label': copy.pageNavLabel },
           h(
             Button,
             { onClick: () => onPage(Math.max(1, pageNumber - 1)), disabled: busy || !hasPrev, size: 'sm' },
             h(Icon, { name: 'chevronLeft' }),
             copy.pagePrev,
           ),
-          h('span', { className: 'toy-caption' }, copy.pageLabel(pageNumber, pageCount, total)),
+          h('span', { className: 'toy-caption', 'aria-live': 'polite' }, copy.pageLabel(pageNumber, pageCount, total)),
           h(
             Button,
             { onClick: () => onPage(pageNumber + 1), disabled: busy || !hasNext, size: 'sm' },

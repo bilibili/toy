@@ -9,6 +9,8 @@ import type { ToyListPage, ToySummary } from '../shared/types.ts'
 export interface ToyCatalogue {
   readonly total: number
   readonly items: readonly ToySummary[]
+  /** True when the account holds more Toys than the panel was willing to load. */
+  readonly truncated: boolean
 }
 
 /**
