@@ -448,6 +448,39 @@ export function createToyService(config, logger = {}) {
     },
 
     /**
+     * Creator notifications. Read-only: the CLI never clears the platform's
+     * unread badge, so this panel cannot either.
+     * @param {number} category 0 all, 1 achievements, 2 works/permissions, 3 events
+     * @returns {Promise<import('../shared/types.ts').NotifyFeed>}
+     */
+    async notifications(category = 0) {
+      const requested = intOr(category, 0)
+      if (requested < 0 || requested > 3) throw new Error('category must be between 0 and 3')
+      const argv = ['notify', '--size', '50']
+      if (requested > 0) argv.push('--category', String(requested))
+      const result = await cli.runJson(argv)
+      if (!result.ok) throw throwCli(result, 'notify failed')
+      const data = result.data ?? {}
+      const items = Array.isArray(data.items) ? data.items : []
+      return {
+        items: items.map(item => ({
+          id: Number(item.id ?? 0),
+          category: Number(item.category ?? 0),
+          ...(typeof item.origin === 'number' ? { origin: item.origin } : {}),
+          ...(typeof item.template_code === 'string' ? { templateCode: item.template_code } : {}),
+          title: typeof item.title === 'string' ? item.title : '',
+          ...(typeof item.body === 'string' ? { body: item.body } : {}),
+          ...(typeof item.action_text === 'string' ? { actionText: item.action_text } : {}),
+          ...(typeof item.action_url === 'string' ? { actionUrl: item.action_url } : {}),
+          ...(typeof item.ctime === 'number' ? { time: item.ctime } : {}),
+        })),
+        ...(typeof data.new_count === 'number' ? { newCount: data.new_count } : {}),
+        ...(typeof data.has_more === 'boolean' ? { hasMore: data.has_more } : {}),
+        ...(typeof data.notification_url === 'string' ? { notificationUrl: data.notification_url } : {}),
+      }
+    },
+
+    /**
      * One Toy's stats.
      * @param {number} id
      * @param {{ days?: number, start?: string, end?: string }} window

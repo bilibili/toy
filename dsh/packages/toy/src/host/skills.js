@@ -112,28 +112,75 @@ function cleanOutput(text) {
     .slice(-8000)
 }
 
-/** Run one command with a timeout, no shell, bounded output. */
+/**
+ * Run one command with a timeout, no shell, bounded output.
+ *
+ * npx spawns children of its own, so POSIX runs get their own process group: a
+ * timeout stops the whole tree. A hard deadline settles the promise even when a
+ * descendant keeps the stdio pipes open, because otherwise `installSkill` would
+ * stay pending forever and the page would show "running" with no end.
+ */
 function runCommand(argv, { timeoutMs, cwd, env }) {
   return new Promise(resolvePromise => {
-    const child = spawn(argv[0], argv.slice(1), { cwd, env, shell: false, stdio: ['ignore', 'pipe', 'pipe'] })
+    const detached = process.platform !== 'win32'
+    const child = spawn(argv[0], argv.slice(1), {
+      cwd,
+      env,
+      shell: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...(detached ? { detached: true } : {}),
+    })
     let output = ''
+    let settled = false
     let timedOut = false
+    let hardTimer
+
+    const finish = result => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      clearTimeout(hardTimer)
+      resolvePromise(result)
+    }
+
+    const signal = name => {
+      try {
+        if (detached && child.pid !== undefined) process.kill(-child.pid, name)
+        else child.kill(name)
+      } catch {
+        try {
+          child.kill(name)
+        } catch {
+          // The tree already exited.
+        }
+      }
+    }
+
     const timer = setTimeout(() => {
       timedOut = true
-      child.kill('SIGTERM')
+      signal('SIGTERM')
+      hardTimer = setTimeout(() => {
+        signal('SIGKILL')
+        finish({ ok: false, exitCode: child.exitCode, output: output.trim(), timedOut: true })
+      }, 2000)
     }, timeoutMs)
+
     const collect = chunk => {
       if (output.length < 256 * 1024) output += String(chunk)
     }
     child.stdout?.on('data', collect)
     child.stderr?.on('data', collect)
     child.on('error', error => {
-      clearTimeout(timer)
-      resolvePromise({ ok: false, exitCode: null, output: `${output}${error instanceof Error ? error.message : String(error)}`, timedOut, spawnError: error })
+      finish({
+        ok: false,
+        exitCode: null,
+        output: `${output}${error instanceof Error ? error.message : String(error)}`,
+        timedOut,
+        spawnError: error,
+      })
     })
     child.on('close', exitCode => {
-      clearTimeout(timer)
-      resolvePromise({ ok: exitCode === 0, exitCode, output: output.trim(), timedOut })
+      finish({ ok: exitCode === 0, exitCode, output: output.trim(), timedOut })
     })
   })
 }

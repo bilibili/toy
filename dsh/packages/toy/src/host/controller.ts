@@ -19,6 +19,7 @@ import type {
   CliUpgradeResult,
   HistoryClearTicket,
   HistoryRecord,
+  NotifyFeed,
   PublishInput,
   PublishPreparation,
   SkillActionResult,
@@ -99,6 +100,16 @@ export class ToyController extends TypertRemoteService {
       ...(days > 0 ? { days } : {}),
       ...(start !== '' && end !== '' ? { start, end } : {}),
     })
+  }
+
+  /**
+   * Creator notifications. Read-only: `toy notify` never clears the platform's
+   * unread badge.
+   * @param category - 0 all, 1 achievements, 2 works/permissions, 3 events.
+   */
+  @Remote('notifications')
+  async notifications(category: number): Promise<NotifyFeed> {
+    return await this.service.notifications(category)
   }
 
   /** Local publish/update history; an empty path means all records. */

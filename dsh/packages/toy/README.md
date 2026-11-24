@@ -86,18 +86,35 @@ the same component, compact, on its Plugins page card. The panel follows the DSH
 language setting (Chinese or English) and re-renders on a switch; if the locale
 service is unavailable it falls back to the browser language.
 
-| Tab | What you can do |
+A compact header keeps the account (name, uid), refresh, sign in/out and the
+**维护** entry, followed by the level-1 entries: Home, Publish/Update, My Toys,
+Data, History, Notifications, Q&A forum, Review support and More info. The home
+view leads with a large **发布 / 更新 Toy** action; the maintenance dialog holds
+the resolved `toy` binary, the CLI version and upgrade flow, and the Skill card,
+so the main surface stays focused on creating.
+
+| Entry | What you can do |
 |---|---|
-| **My Toys** | Every Toy in the account (read 50 per Host call, paged 20 per view; above 1000 the grid says so and keeps the first 1000), poster/title/slug/id/status/visibility cards, refresh, select a Toy |
-| **Stats** | PV/UV bar chart, next-day retention, like/favorite/comment/share totals, 7/30/90-day windows; the Toy picker lists the whole account, not just the visible page |
-| **Publish / Update** | create or update; package/poster/icon paths (history suggestions); title, slug (create only), category, visibility/password, theme, watermark, activity; local precheck with ERROR/WARN findings; **生成预览**; after the preview, an explicit "我已检查预览" step enables **提交审核** |
-| **History** | local publish/update records; clear-all behind a two-step confirmation |
+| **Home** | Large publish/update call to action plus the account dashboard: yesterday's PV/UV vs the same day last week, the last seven days and their week-over-week PV/UV comparison, the portfolio and cumulative interactions, with a refresh control; a works wall of the newest Toys (App Store-style cards) and guided cold-start states for signed-out users or an empty account |
+| **Publish / Update** | Four step sections — target & package, display info, access & activity, precheck & preview. Searchable target picker, package/poster/icon paths with history suggestions, inline validation, local precheck with ERROR/WARN findings, **生成预览**, and a sticky action bar that summarizes the current state and holds precheck/generate/submit; an explicit "我已检查预览" gate still guards **提交审核** |
+| **My Toys** | Every Toy in the account (read 50 per Host call, paged 20 per view; above 1000 the grid says so and keeps the first 1000). Search by title/slug/id, filter by status bucket and sort by update/create/title; the selected Toy opens a detail panel with open-page, stats, update, copy link/ID/slug, and skeleton/empty states with a publish shortcut. Password-protected Toys explain that the platform never returns an existing password to the CLI, and link to the publish platform (Publish records) to view or reset it; the plugin never reads or stores the password |
+| **Data** | Default ranked overview: every Toy one row, ordered by yesterday's PV (then UV), each with a trend sparkline (UV bars with a PV line) and window totals; selecting a row opens the detail view with a searchable picker, a mixed PV/UV chart (PV as a line, UV as bars) with y-axis gridlines and a hovered-day readout, next-day retention and like/favorite/comment/share totals, 7/30/90-day windows, open-page shortcut |
+| **History** | Local publish/update records, search by title/path/id, copy path and "publish with this path", clear-all behind a two-step confirmation |
+| **Notifications** | `toy notify` feed with category chips (all / achievements / works & permissions / events), title, body, time and action links; read-only and never clears the platform unread badge |
+| **Q&A forum** | The public Toy creator Q&A forum is embedded in the panel like the More-info reader (refresh + open-in-browser fallback); it does not host a separate login |
+| **Review support** | Opens the WeCom customer-service conversation for review questions |
+| **More info** | Public developer FAQ, SDK, CLI, user guide, the interactive ops whitepaper and the Toy square are embedded as public pages in an iframe with a manual refresh and an open-in-browser fallback; no unpublished API is scraped and no login session is hosted |
 
-Account header: logged-in user, resolved binary, CLI version, login/logout.
+The header shows the signed-in user and uid; the CLI binary and version live in
+**维护**. Review support opens the WeCom conversation externally; the Q&A forum
+is embedded and keeps an open-in-browser fallback.
 
-The access password is sent only to the CLI: it is masked (`••••`) in every
-wire payload, summary and confirmation dialog, so it never reaches the model
-transcript or the page's DOM.
+The access password is sent only to the CLI when publishing/updating: it is
+masked (`••••`) in every wire payload, summary and confirmation dialog, so it
+never reaches the model transcript. The CLI does not return an existing password
+at all, and the panel does not read browser cookies, host a web login, or store
+passwords; password-protected Toys link to the publish platform where the
+creator can view or reset it.
 
 ## Skill (managed by the skills CLI)
 
@@ -123,8 +140,11 @@ npx skills update    # pull them
 The panel's **Skill card** shows the installed version (the CLI's lock-file
 hash), our content hash and the update time, and offers **安装 skill / 更新
 skill**. It asks for confirmation, runs the fixed command above (no free-form
-arguments), shows the command output and refreshes the card. The matching Host
-configuration is `agentsHome`, `skillAgent` and `skillTimeoutMs`.
+arguments), shows the command output and refreshes the card. While the command
+runs the card shows elapsed seconds and a **停止等待** action; the Host times the
+process tree out at `skillTimeoutMs` and settles the call even if a descendant
+keeps the stdio pipes open. The matching Host configuration is `agentsHome`,
+`skillAgent` and `skillTimeoutMs`.
 
 The skill is documentation (workflow + checklists). The preview gate and the
 `--yes`/ticket rules are enforced in code and do not depend on the model reading it.

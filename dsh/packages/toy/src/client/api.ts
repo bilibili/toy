@@ -39,6 +39,7 @@ export interface ToyNamespace {
   logout(): Promise<unknown>
   listToys(page: number, size: number): Promise<unknown>
   stats(id: number, days: number, start: string, end: string): Promise<unknown>
+  notifications(category: number): Promise<unknown>
   history(path: string): Promise<unknown>
   prepareHistoryClear(): Promise<unknown>
   clearHistory(token: string): Promise<unknown>

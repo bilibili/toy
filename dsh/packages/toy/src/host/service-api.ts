@@ -12,6 +12,7 @@ import type {
   CliUpdateView,
   CliUpgradeResult,
   HistoryRecord,
+  NotifyFeed,
   PublishInput,
   PublishPreparation,
   SkillActionResult,
@@ -116,6 +117,8 @@ export interface ToyService {
   listToys(page: number, size: number): Promise<ToyListPage>
   /** One Toy's visit stats. */
   stats(id: number, window: StatsWindow): Promise<ToyStats>
+  /** Creator notifications, read-only; never changes the platform unread state. */
+  notifications(category: number): Promise<NotifyFeed>
   /** `toy upgrade --check`: current/latest CLI version, without changing anything. */
   cliUpdateCheck(): Promise<CliUpdateView>
   /** Run `toy upgrade` after the page's explicit confirmation. */
