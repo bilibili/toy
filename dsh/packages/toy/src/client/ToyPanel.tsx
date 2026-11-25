@@ -19,6 +19,7 @@ import { useCopy } from './i18n.ts'
 import { InfoView } from './InfoView.tsx'
 import { TOY_LINKS, openLink } from './links.ts'
 import { NotifyView } from './NotifyView.tsx'
+import { readNotifySeen, writeNotifySeen } from './notifySeen.ts'
 import { HistoryView } from './HistoryView.tsx'
 import { PublishView } from './PublishView.tsx'
 import { SkillCard } from './SkillCard.tsx'
@@ -321,7 +322,15 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
     }
     let disposed = false
     void call<NotifyFeed>('notifications', () => ns.notifications(0)).then((outcome) => {
-      if (!disposed && outcome.ok) setNotifyNewCount(outcome.value.newCount ?? 0)
+      if (disposed || !outcome.ok) return
+      const latest = outcome.value.items.reduce((max, item) => Math.max(max, item.time ?? 0), 0)
+      const seen = readNotifySeen(statsAccountUid)
+      if (seen === undefined) {
+        writeNotifySeen(statsAccountUid, latest)
+        setNotifyNewCount(0)
+        return
+      }
+      setNotifyNewCount(outcome.value.items.filter((item) => (item.time ?? 0) > seen).length)
     })
     return () => {
       disposed = true
@@ -398,7 +407,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
             ? h('span', { className: 'toy-tab-count' }, String(catalogue.total))
             : null,
           entry.id === 'notify' && notifyNewCount > 0
-            ? h('span', { className: 'toy-tab-badge', title: copy.tabNotify }, notifyNewCount > 99 ? '99+' : String(notifyNewCount))
+            ? h('span', { className: 'toy-tab-badge', title: copy.notifyBadgeHint }, notifyNewCount > 99 ? '99+' : String(notifyNewCount))
             : null,
         ),
       ),
@@ -639,7 +648,15 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
             h(
               'div',
               { hidden: tab !== 'notify' },
-              h(NotifyView, { copy, ns, active: tab === 'notify' }),
+              h(NotifyView, {
+                copy,
+                ns,
+                active: tab === 'notify',
+                onRead: (latest) => {
+                  setNotifyNewCount(0)
+                  writeNotifySeen(statsAccountUid, latest)
+                },
+              }),
             ),
             h(
               'div',

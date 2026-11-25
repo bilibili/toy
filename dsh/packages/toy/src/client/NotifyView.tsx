@@ -27,10 +27,12 @@ export function NotifyView({
   copy,
   ns,
   active,
+  onRead,
 }: {
   readonly copy: Copy
   readonly ns: ToyNamespace
   readonly active: boolean
+  readonly onRead?: (latestCtime: number) => void
 }): ReactNode {
   const [category, setCategory] = useState<Category>(0)
   const [feed, setFeed] = useState<NotifyFeed | undefined>(undefined)
@@ -38,6 +40,8 @@ export function NotifyView({
   const [error, setError] = useState<Failure | undefined>(undefined)
   const [tick, setTick] = useState(0)
   const loadSeq = useRef(0)
+  const onReadRef = useRef(onRead)
+  onReadRef.current = onRead
 
   const load = useCallback(async (): Promise<void> => {
     const run = loadSeq.current + 1
@@ -53,6 +57,8 @@ export function NotifyView({
       return
     }
     setFeed(outcome.value)
+    const latest = outcome.value.items.reduce((max, item) => Math.max(max, item.time ?? 0), 0)
+    if (latest > 0) onReadRef.current?.(latest)
   }, [ns, category])
 
   useEffect(() => {
