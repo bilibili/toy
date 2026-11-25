@@ -231,7 +231,8 @@ export function HomeView({
 
   const dash = summary
   const wow = dash?.wowPercent
-  const showSkeleton = busy && dash === undefined
+  const catalogueLoading = toys === undefined && toysError === undefined
+  const showSkeleton = dash === undefined && (catalogueLoading || busy)
   const loggedIn = account?.loggedIn === true
   const emptyWorkspace = toys !== undefined && toys.length === 0
 
@@ -344,18 +345,22 @@ export function HomeView({
         h(
           'div',
           { className: 'toy-toolbar' },
-          busy
+          busy || catalogueLoading
             ? h(
                 'span',
                 { className: 'toy-caption' },
-                progress === undefined ? copy.loading : copy.homeLoading(progress.done, progress.total),
+                catalogueLoading
+                  ? copy.homeDataHint
+                  : progress === undefined
+                    ? copy.loading
+                    : copy.homeLoading(progress.done, progress.total),
               )
             : null,
           h(
             Button,
             {
               size: 'sm',
-              disabled: busy,
+              disabled: busy || catalogueLoading,
               onClick: () => {
                 forceNext.current = true
                 setTick((value) => value + 1)
