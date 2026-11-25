@@ -299,6 +299,9 @@ export function StatsView({
       }
     }
     let disposed = false
+    // Clear the old Toy's KPIs so the new title cannot briefly show stale
+    // interactions/chart values while the fetch is in flight.
+    setStats(undefined)
     setBusy(true)
     setError(undefined)
     void call<ToyStats>('stats', () => ns.stats(selectedId, days, '', '')).then((outcome) => {

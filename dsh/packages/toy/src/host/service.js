@@ -52,6 +52,17 @@ function normalizeVisibility(value) {
   return value.toLowerCase().replaceAll('_', '-')
 }
 
+/** Resolve a CLI action link against the public site; reject unsafe schemes. */
+function normalizeActionUrl(value) {
+  if (typeof value !== 'string' || value === '') return undefined
+  try {
+    const url = new URL(value, 'https://www.bilibili.com')
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** @param {string} url */
 function slugFromUrl(url) {
   if (typeof url !== 'string') return null
@@ -471,12 +482,12 @@ export function createToyService(config, logger = {}) {
           title: typeof item.title === 'string' ? item.title : '',
           ...(typeof item.body === 'string' ? { body: item.body } : {}),
           ...(typeof item.action_text === 'string' ? { actionText: item.action_text } : {}),
-          ...(typeof item.action_url === 'string' ? { actionUrl: item.action_url } : {}),
+          ...(normalizeActionUrl(item.action_url) === undefined ? {} : { actionUrl: normalizeActionUrl(item.action_url) }),
           ...(typeof item.ctime === 'number' ? { time: item.ctime } : {}),
         })),
         ...(typeof data.new_count === 'number' ? { newCount: data.new_count } : {}),
         ...(typeof data.has_more === 'boolean' ? { hasMore: data.has_more } : {}),
-        ...(typeof data.notification_url === 'string' ? { notificationUrl: data.notification_url } : {}),
+        ...(normalizeActionUrl(data.notification_url) === undefined ? {} : { notificationUrl: normalizeActionUrl(data.notification_url) }),
       }
     },
 

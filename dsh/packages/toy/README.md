@@ -101,13 +101,12 @@ so the main surface stays focused on creating.
 | **Data** | Default ranked overview: every Toy one row, ordered by yesterday's PV (then UV), each with a trend sparkline (UV bars with a PV line) and window totals; selecting a row opens the detail view with a searchable picker, a mixed PV/UV chart (PV as a line, UV as bars) with y-axis gridlines and a hovered-day readout, next-day retention and like/favorite/comment/share totals, 7/30/90-day windows, open-page shortcut |
 | **History** | Local publish/update records, search by title/path/id, copy path and "publish with this path", clear-all behind a two-step confirmation |
 | **Notifications** | `toy notify` feed with category chips (all / achievements / works & permissions / events), title, body, time and action links; read-only and never clears the platform unread badge |
-| **Q&A forum** | The public Toy creator Q&A forum is embedded in the panel like the More-info reader (refresh + open-in-browser fallback); it does not host a separate login |
+| **Q&A forum** | Opens the public Toy creator Q&A forum in the browser; a link card remains as the popup-blocked fallback |
 | **Review support** | Opens the WeCom customer-service conversation for review questions |
-| **More info** | Public developer FAQ, SDK, CLI, user guide, the interactive ops whitepaper and the Toy square are embedded as public pages in an iframe with a manual refresh and an open-in-browser fallback; no unpublished API is scraped and no login session is hosted |
+| **More info** | Link cards for the public developer FAQ, SDK, CLI, user guide, the interactive ops whitepaper and the Toy square; every entry opens in the browser. No page is embedded, no unpublished API is scraped and no login session is hosted |
 
 The header shows the signed-in user and uid; the CLI binary and version live in
-**维护**. Review support opens the WeCom conversation externally; the Q&A forum
-is embedded and keeps an open-in-browser fallback.
+**维护**. Review support and the Q&A forum open externally in the browser.
 
 The access password is sent only to the CLI when publishing/updating: it is
 masked (`••••`) in every wire payload, summary and confirmation dialog, so it

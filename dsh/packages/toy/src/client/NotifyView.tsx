@@ -3,7 +3,7 @@
  * the CLI deliberately never clears the platform's unread badge.
  */
 
-import { createElement as h, useCallback, useEffect, useState } from 'react'
+import { createElement as h, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { call, formatUnixTime } from './api.ts'
@@ -37,11 +37,16 @@ export function NotifyView({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<Failure | undefined>(undefined)
   const [tick, setTick] = useState(0)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async (): Promise<void> => {
+    const run = loadSeq.current + 1
+    loadSeq.current = run
     setBusy(true)
     setError(undefined)
+    setFeed(undefined)
     const outcome = await call<NotifyFeed>('notifications', () => ns.notifications(category))
+    if (loadSeq.current !== run) return
     setBusy(false)
     if (!outcome.ok) {
       setError(outcome.failure)

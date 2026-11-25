@@ -97,7 +97,16 @@ function WallCard({
     h(
       'div',
       { className: 'toy-wall-info' },
-      cover === undefined ? null : h('span', { className: 'toy-wall-info-bg', style: { backgroundImage: `url(${cover})` }, 'aria-hidden': true }),
+      cover === undefined
+        ? null
+        : h('img', {
+            className: 'toy-wall-info-bg',
+            src: cover,
+            alt: '',
+            'aria-hidden': true,
+            loading: 'lazy',
+            referrerPolicy: 'no-referrer',
+          }),
       h('span', { className: 'toy-wall-info-tint', 'aria-hidden': true }),
       h(
         'span',
@@ -138,7 +147,6 @@ function WallCard({
 }
 
 /** The panel home view. */
-/** The panel home view. */
 export function HomeView({
   copy,
   ns,
@@ -150,6 +158,8 @@ export function HomeView({
   onStatsToy,
   onUpdateToy,
   onLogin,
+  toysError,
+  onRetryToys,
   onNavigate,
 }: {
   readonly copy: Copy
@@ -166,6 +176,9 @@ export function HomeView({
   readonly onUpdateToy: (toy: ToySummary) => void
   /** Start the B站 OAuth login. */
   readonly onLogin: () => void
+  /** The catalogue load failure, when the first `mylist` attempt failed. */
+  readonly toysError?: Failure
+  readonly onRetryToys?: () => void
   readonly onNavigate: (target: 'publish' | 'toys' | 'stats' | 'history' | 'notify' | 'forum' | 'support' | 'info') => void
 }): ReactNode {
   const [summary, setSummary] = useState<AccountSummary | undefined>(undefined)
@@ -248,7 +261,20 @@ export function HomeView({
         ),
       ),
     ),
-    !loggedIn
+    toysError !== undefined && toys === undefined
+      ? h(
+          'section',
+          { className: 'toy-panel' },
+          h(FailureBanner, { failure: toysError, copy }),
+          h(
+            Button,
+            { size: 'sm', onClick: onRetryToys },
+            h(Icon, { name: 'refresh' }),
+            copy.refresh,
+          ),
+        )
+      : null,
+    account !== undefined && !loggedIn
       ? h(
           'section',
           { className: 'toy-onboarding' },
@@ -299,7 +325,7 @@ export function HomeView({
             ),
           )
         : null,
-    loggedIn && !emptyWorkspace ? h(
+    loggedIn && !emptyWorkspace && toysError === undefined ? h(
       'section',
       { className: 'toy-dashboard' },
       h(
@@ -435,7 +461,7 @@ export function HomeView({
         ? h('div', { className: 'toy-caption' }, copy.homeNoDataHint)
         : null,
     ) : null,
-    loggedIn ? h(
+    loggedIn && toysError === undefined ? h(
       'section',
       { className: 'toy-works' },
       h(

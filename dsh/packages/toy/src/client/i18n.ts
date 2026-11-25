@@ -140,7 +140,7 @@ const ZH = {
   homeWow7: (percent: number) => `较前 7 天 ${percent >= 0 ? '+' : ''}${percent.toFixed(1)}%`,
   homeWow7NoData: '暂无前 7 天对比数据',
   homeLast7: '近 7 天 PV',
-  homeLast7Uv: '近 7 天 UV',
+  homeLast7Uv: '近 7 天 UV 累计（按日/作品相加）',
   homePortfolio: '作品概况',
   homePortfolioSub: (published: number, others: number) => `已发布 ${published} · 其他 ${others}`,
   homeInteractions: '累计互动',
@@ -195,10 +195,9 @@ const ZH = {
 
   // More info
   infoTitle: '更多信息',
-  infoSubtitle: '官方文档与 FAQ 以公开页面实时内嵌展示，可随时刷新；不抓取未公开接口，不代管登录态。',
+  infoSubtitle: '官方文档与 FAQ 均在新标签页打开；插件只做导航，不内嵌页面、不抓取接口、不托管登录态。',
   infoSquare: 'Toy 广场',
   infoSquareDesc: '看看平台上其他创作者发布的 Toy。',
-  infoEmbedHint: '实时页面 · 每日 04:00 重新加载',
   infoOpenExternal: '在浏览器打开',
   infoOpenPlatform: '打开发布平台',
   infoSdk: 'SDK',
@@ -274,7 +273,7 @@ const ZH = {
   commentLabel: '评论',
   shareLabel: '分享',
   statsRangeHint: '统计窗口截止到昨天，由 toy CLI 返回。',
-  statsUvHint: 'PV 是区间合计；UV 按天去重，跨天不可直接相加。',
+  statsUvHint: 'PV 可跨日相加；UV 按天去重，区间 UV 为逐日相加，不代表跨天去重人数。',
   dayTooltip: (date: string, pv: number, uv: number, retention?: number) =>
     retention === undefined ? `${date} · PV ${pv} · UV ${uv}` : `${date} · PV ${pv} · UV ${uv} · 留存 ${retention}%`,
   statsOverviewHint: '按昨日 PV 降序；每行显示这个 Toy 的最近趋势和窗口合计，点一行查看完整统计。',
@@ -624,7 +623,7 @@ const EN: typeof ZH = {
   homeWow7: (percent: number) => `vs previous 7 days ${percent >= 0 ? '+' : ''}${percent.toFixed(1)}%`,
   homeWow7NoData: 'No previous-7-day base',
   homeLast7: 'Last 7 days PV',
-  homeLast7Uv: 'Last 7 days UV',
+  homeLast7Uv: 'Last 7 days UV (sum of days/Toys)',
   homePortfolio: 'Portfolio',
   homePortfolioSub: (published: number, others: number) => `${published} published · ${others} other`,
   homeInteractions: 'Total interactions',
@@ -679,10 +678,9 @@ const EN: typeof ZH = {
 
   // More info
   infoTitle: 'More info',
-  infoSubtitle: 'Official docs and the FAQ are embedded as public pages with a manual refresh; no unpublished APIs or hosted login session.',
+  infoSubtitle: 'Official docs and the FAQ open in a new tab; the panel only links out — no embedded pages, API scraping or hosted login session.',
   infoSquare: 'Toy square',
   infoSquareDesc: 'Browse Toys published by other creators.',
-  infoEmbedHint: 'Live page · reloads daily at 04:00',
   infoOpenExternal: 'Open in browser',
   infoOpenPlatform: 'Open publish platform',
   infoSdk: 'SDK',
@@ -756,7 +754,7 @@ const EN: typeof ZH = {
   commentLabel: 'Comments',
   shareLabel: 'Shares',
   statsRangeHint: 'The window ends yesterday, as reported by the toy CLI.',
-  statsUvHint: 'PV is summed over the window; UV is deduplicated per day, so daily UV values do not add up across days.',
+  statsUvHint: 'PV is additive; UV is deduplicated per day, so a window UV is the sum of daily UVs, not unique people across days.',
   dayTooltip: (date: string, pv: number, uv: number, retention?: number) =>
     retention === undefined ? `${date} · PV ${pv} · UV ${uv}` : `${date} · PV ${pv} · UV ${uv} · retention ${retention}%`,
   statsOverviewHint: 'Ranked by yesterday’s PV; each row shows that Toy’s recent trend and window totals. Click a row for full stats.',

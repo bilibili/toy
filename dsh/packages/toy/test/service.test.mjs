@@ -578,9 +578,11 @@ test('notifications normalize the creator feed and forward the category', async 
     title: 'demo 审核未通过',
     body: '你的 Toy 版本审核未通过。',
     actionText: '联系客服',
-    actionUrl: 'https://work.weixin.qq.com/kfid/fake',
+    actionUrl: 'https://www.bilibili.com/toy/publish/sdk#api-getchargeunlock',
     time: 1794397786,
   })
+  assert.equal(feed.items[1].title, 'unsafe link')
+  assert.equal(feed.items[1].actionUrl, undefined)
 
   const requests = await readArgv(log)
   assert.deepEqual(requests.at(-1), ['notify', '--size', '50', '--json'])

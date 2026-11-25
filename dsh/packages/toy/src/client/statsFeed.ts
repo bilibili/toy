@@ -1,12 +1,12 @@
 /**
- * Shared per-Toy stats feed with a bounded-concurrency fan-out and a persistent
- * cache, so the home dashboard (14-day window) and the data overview (7/30/90)
- * do not hammer the CLI for the same numbers twice — and re-entering a view or
- * restarting DSH within the cache window shows the last data instantly.
+ * Shared per-Toy stats feed with a bounded-concurrency fan-out and an
+ * account-scoped persistent cache. Home (14 days) and Data (7/30/90) reuse the
+ * same request, and only missing Toys are fetched after a cache hit.
  *
- * The cache is per browser profile (localStorage), keyed by window, and keeps
- * failed Toys as `undefined` for the same window. A manual refresh passes
- * `force` to bypass both layers.
+ * The persistent layer is scoped to the current account, keeps only the 14-day
+ * window (the 30/90-day views stay in memory), and is cleared on account
+ * change/logout. A manual refresh starts a new request instead of reusing an
+ * in-flight one.
  */
 
 import { call } from './api.ts'
@@ -15,24 +15,21 @@ import { mapLimit } from './overview.js'
 import { sliceToyStats } from './statsAggregate.js'
 import type { ToyStats, ToySummary } from '../shared/types.ts'
 
-/** Requests in flight at once. */
 const CONCURRENCY = 4
 /** Extra days fetched by the data overview so the home dashboard can reuse it. */
 export const FEED_MIN_DAYS = 14
-/** How long a completed window is considered fresh. */
 export const FEED_TTL_MS = 6 * 60 * 60 * 1000
-/** How long one Toy's detail window is considered fresh. */
 export const DETAIL_TTL_MS = 6 * 60 * 60 * 1000
-/** Windows the persisted feed may hold (the overview presets plus the home window). */
 const FEED_WINDOWS: readonly number[] = [14, 30, 90]
+/** Only this window is persisted: larger windows would blow the localStorage quota. */
+const PERSIST_WINDOW = 14
+/** Skip persistence when one window would exceed this (roughly 1.5 MB). */
+const MAX_PERSIST_BYTES = 1_500_000
 
 const FEED_PREFIX = 'dsh-toy-stats-feed-v1:'
 const DETAIL_PREFIX = 'dsh-toy-stats-detail-v1:'
 
-/** One Toy's stats by id; `undefined` marks a Toy whose stats could not be read. */
 export type StatsByToy = ReadonlyMap<number, ToyStats | undefined>
-
-/** Progress of a feed load. */
 export interface FeedProgress {
   readonly done: number
   readonly total: number
@@ -43,17 +40,23 @@ interface CacheEntry {
   readonly at: number
   readonly data: StatsByToy
 }
-
 interface StoredFeed {
   readonly at: number
-  /** `null` records a Toy whose stats could not be read. */
   readonly data: Record<string, ToyStats | null>
 }
+interface Job {
+  readonly id: number
+  readonly promise: Promise<StatsByToy>
+}
 
+/** localStorage namespace segment; changes when the signed-in account changes. */
+let accountScope = 'anon'
 const cache = new Map<number, CacheEntry>()
-const inflight = new Map<number, Promise<StatsByToy>>()
+const parsedFeeds = new Map<number, CacheEntry | undefined>()
+const jobs = new Map<number, Job>()
+const generation = new Map<number, number>()
+let jobSeq = 0
 
-/** localStorage when it is usable (private windows/quota can throw). */
 function storage(): Storage | undefined {
   try {
     return window.localStorage
@@ -62,7 +65,11 @@ function storage(): Storage | undefined {
   }
 }
 
-function readStored(key: string): unknown {
+function key(prefix: string, suffix: string): string {
+  return `${prefix}${accountScope}:${suffix}`
+}
+
+function readJson(key: string): unknown {
   try {
     const raw = storage()?.getItem(key)
     return raw === undefined || raw === null ? undefined : JSON.parse(raw)
@@ -71,12 +78,46 @@ function readStored(key: string): unknown {
   }
 }
 
-function writeStored(key: string, value: unknown): void {
+function writeJson(key: string, value: unknown): void {
   try {
-    storage()?.setItem(key, JSON.stringify(value))
+    const serialized = JSON.stringify(value)
+    if (serialized.length > MAX_PERSIST_BYTES) return
+    storage()?.setItem(key, serialized)
   } catch {
     // Quota exceeded or storage disabled: the in-memory cache still works.
   }
+}
+
+function removeKey(key: string): void {
+  try {
+    storage()?.removeItem(key)
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+/** Drop every stats cache (memory + persisted) for the previous account. */
+function clearAll(): void {
+  cache.clear()
+  parsedFeeds.clear()
+  jobs.clear()
+  generation.clear()
+  const store = storage()
+  if (store === undefined) return
+  for (const prefix of [FEED_PREFIX, DETAIL_PREFIX]) {
+    for (let index = store.length - 1; index >= 0; index -= 1) {
+      const item = store.key(index)
+      if (item !== null && item.startsWith(prefix)) store.removeItem(item)
+    }
+  }
+}
+
+/** Scope the cache to an account uid; changing accounts clears both layers. */
+export function setStatsAccount(uid: number | undefined): void {
+  const next = uid === undefined || !Number.isFinite(uid) ? 'anon' : String(uid)
+  if (next === accountScope) return
+  clearAll()
+  accountScope = next
 }
 
 function isFresh(at: number | undefined, ttl: number): at is number {
@@ -98,35 +139,35 @@ function toStored(map: StatsByToy): Record<string, ToyStats | null> {
   return data
 }
 
-/** A persisted feed for one window, when one exists and is fresh. */
+function persistedKey(windowDays: number): string {
+  return key(FEED_PREFIX, String(windowDays))
+}
+
 function readPersistedFeed(windowDays: number): CacheEntry | undefined {
-  const stored = readStored(`${FEED_PREFIX}${windowDays}`) as StoredFeed | undefined
-  if (stored === undefined || typeof stored.at !== 'number' || stored.data === undefined) return undefined
-  // Expired windows are dropped so the next write does not keep stale topics.
-  if (!isFresh(stored.at, FEED_TTL_MS)) {
-    try {
-      storage()?.removeItem(`${FEED_PREFIX}${windowDays}`)
-    } catch {
-      // Ignore storage failures.
-    }
-    return undefined
+  if (parsedFeeds.has(windowDays)) return parsedFeeds.get(windowDays)
+  const stored = readJson(persistedKey(windowDays)) as StoredFeed | undefined
+  let entry: CacheEntry | undefined
+  if (stored !== undefined && typeof stored.at === 'number' && stored.data !== undefined && isFresh(stored.at, FEED_TTL_MS)) {
+    entry = { at: stored.at, data: toMap(stored.data) }
+  } else if (stored !== undefined) {
+    removeKey(persistedKey(windowDays))
   }
-  return { at: stored.at, data: toMap(stored.data) }
+  parsedFeeds.set(windowDays, entry)
+  return entry
 }
 
-function writePersistedFeed(windowDays: number, map: StatsByToy): void {
-  if (!FEED_WINDOWS.includes(windowDays)) return
-  writeStored(`${FEED_PREFIX}${windowDays}`, { at: Date.now(), data: toStored(map) } satisfies StoredFeed)
+function writePersistedFeed(windowDays: number, map: StatsByToy, at = Date.now()): void {
+  if (windowDays !== PERSIST_WINDOW) return
+  writeJson(persistedKey(windowDays), { at, data: toStored(map) } satisfies StoredFeed)
+  parsedFeeds.delete(windowDays)
 }
 
-/** A cached feed for a window, when one is already complete and fresh. */
 export function peekFeed(windowDays: number): StatsByToy | undefined {
   const memory = cache.get(windowDays)
   if (memory !== undefined && isFresh(memory.at, FEED_TTL_MS)) return memory.data
   return readPersistedFeed(windowDays)?.data
 }
 
-/** One Toy's stats from a fresh feed that covers the requested window. */
 function readFeedToy(id: number, days: number): ToyStats | undefined {
   for (const windowDays of [...FEED_WINDOWS].sort((left, right) => left - right)) {
     if (windowDays < days) continue
@@ -138,26 +179,42 @@ function readFeedToy(id: number, days: number): ToyStats | undefined {
   return undefined
 }
 
-/** One Toy's detail window from the persistent detail cache (or a covering feed). */
 export function readToyStatsCache(id: number, days: number): ToyStats | undefined {
-  const stored = readStored(`${DETAIL_PREFIX}${days}:${id}`) as { at?: number; stats?: ToyStats } | undefined
+  const stored = readJson(key(DETAIL_PREFIX, `${days}:${id}`)) as { at?: number; stats?: ToyStats } | undefined
   if (stored !== undefined && typeof stored.at === 'number' && stored.stats !== undefined && isFresh(stored.at, DETAIL_TTL_MS)) {
     return stored.stats
   }
   return readFeedToy(id, days)
 }
 
-/** Remember one Toy's detail window for the next visit. */
 export function writeToyStatsCache(id: number, days: number, stats: ToyStats): void {
-  writeStored(`${DETAIL_PREFIX}${days}:${id}`, { at: Date.now(), stats })
+  writeJson(key(DETAIL_PREFIX, `${days}:${id}`), { at: Date.now(), stats })
 }
 
-/**
- * Load every Toy's stats for `windowDays`, reporting progress and tolerating
- * per-Toy failures (one retry each). Fresh entries — memory, persisted, or
- * covered by a wider persisted window — are reused and only missing Toys are
- * fetched; `force` ignores both layers and refetches everything.
- */
+function startJob(windowDays: number, promise: Promise<StatsByToy>): Promise<StatsByToy> {
+  jobSeq += 1
+  const id = jobSeq
+  const wrapped = promise.finally(() => {
+    if (jobs.get(windowDays)?.id === id) jobs.delete(windowDays)
+  })
+  jobs.set(windowDays, { id, promise: wrapped })
+  return wrapped
+}
+
+/** A fresh base from memory/persisted; `force` drops both. */
+function baseFor(windowDays: number, force: boolean): CacheEntry | undefined {
+  if (force) {
+    cache.delete(windowDays)
+    parsedFeeds.delete(windowDays)
+    removeKey(persistedKey(windowDays))
+    jobs.delete(windowDays)
+    return undefined
+  }
+  const memory = cache.get(windowDays)
+  if (memory !== undefined && isFresh(memory.at, FEED_TTL_MS)) return memory
+  return readPersistedFeed(windowDays)
+}
+
 export async function loadToyStats(
   ns: ToyNamespace,
   toys: readonly ToySummary[],
@@ -165,46 +222,49 @@ export async function loadToyStats(
   onProgress?: (progress: FeedProgress) => void,
   force = false,
 ): Promise<StatsByToy> {
-  if (force) {
-    cache.delete(windowDays)
-    try {
-      storage()?.removeItem(`${FEED_PREFIX}${windowDays}`)
-    } catch {
-      // Ignore storage failures.
-    }
-  } else {
-    const memory = cache.get(windowDays)
-    const freshMemory = memory !== undefined && isFresh(memory.at, FEED_TTL_MS) ? memory : undefined
-    const freshPersisted = readPersistedFeed(windowDays)
-    const base = freshMemory?.data ?? freshPersisted?.data
-    if (base !== undefined) {
-      const missing = toys.filter((toy) => !base.has(toy.id))
-      if (missing.length === 0) return base
-      const baseMap = new Map(base)
-      const filled = await fill(ns, missing, windowDays, baseMap.size, toys.length, onProgress)
-      const merged = new Map(baseMap)
-      for (const [id, value] of filled) merged.set(id, value)
-      cache.set(windowDays, { at: Date.now(), data: merged })
-      writePersistedFeed(windowDays, merged)
-      return merged
-    }
+  if (!force) {
+    const running = jobs.get(windowDays)
+    if (running !== undefined) return running.promise
   }
-
-  const running = inflight.get(windowDays)
-  if (running !== undefined) return running
-
-  const job = (async (): Promise<StatsByToy> => {
-    const data = await fill(ns, toys, windowDays, 0, toys.length, onProgress)
-    cache.set(windowDays, { at: Date.now(), data })
-    writePersistedFeed(windowDays, data)
-    inflight.delete(windowDays)
-    return data
-  })()
-  inflight.set(windowDays, job)
-  return job
+  const myGeneration = (generation.get(windowDays) ?? 0) + 1
+  generation.set(windowDays, myGeneration)
+  const base = baseFor(windowDays, force)
+  if (base !== undefined) {
+    const missing = toys.filter((toy) => !base.data.has(toy.id))
+    if (missing.length === 0) return base.data
+    const baseAt = base.at
+    return startJob(
+      windowDays,
+      (async () => {
+        const filled = await fill(ns, missing, windowDays, base.data.size, toys.length, onProgress)
+        const merged = new Map(base.data)
+        for (const [id, value] of filled) merged.set(id, value)
+        if (generation.get(windowDays) === myGeneration) {
+          cache.set(windowDays, { at: Date.now(), data: merged })
+          // Do not extend the freshness of the old entries with this partial fetch.
+          writePersistedFeed(windowDays, merged, baseAt)
+        }
+        return merged
+      })(),
+    )
+  }
+  return startJob(
+    windowDays,
+    (async () => {
+      const data = await fill(ns, toys, windowDays, 0, toys.length, onProgress)
+      if (generation.get(windowDays) === myGeneration) {
+        cache.set(windowDays, { at: Date.now(), data })
+        writePersistedFeed(windowDays, data)
+      }
+      return data
+    })(),
+  )
 }
 
-/** Fetch a set of Toys, merging into a map that starts with `doneBefore` entries. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 async function fill(
   ns: ToyNamespace,
   toys: readonly ToySummary[],
@@ -221,6 +281,7 @@ async function fill(
     async (toy) => {
       let value: ToyStats | undefined
       for (let attempt = 0; attempt < 2; attempt += 1) {
+        if (attempt > 0) await sleep(250 * attempt)
         const outcome = await call<ToyStats>('stats', () => ns.stats(toy.id, windowDays, '', ''))
         if (outcome.ok) {
           value = outcome.value

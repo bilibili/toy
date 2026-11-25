@@ -13,7 +13,6 @@ import type { ReactNode } from 'react'
 
 import { call } from './api.ts'
 import type { Failure, ToyNamespace } from './api.ts'
-import { EmbedView } from './EmbedView.tsx'
 import { ExternalView } from './ExternalView.tsx'
 import { HomeView } from './HomeView.tsx'
 import { useCopy } from './i18n.ts'
@@ -25,6 +24,7 @@ import { PublishView } from './PublishView.tsx'
 import { SkillCard } from './SkillCard.tsx'
 import type { PublishPrefill } from './PublishView.tsx'
 import { StatsView } from './StatsView.tsx'
+import { setStatsAccount } from './statsFeed.ts'
 import { useToyStyles } from './styles.ts'
 import { ToysView } from './ToysView.tsx'
 import { Banner, Badge, Button, Dialog, FailureBanner, Icon, Toolbar } from './ui.tsx'
@@ -33,6 +33,7 @@ import type {
   CliUpdateView,
   CliUpgradeResult,
   HistoryRecord,
+  NotifyFeed,
   ToyListPage,
   ToySummary,
 } from '../shared/types.ts'
@@ -59,12 +60,15 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
 
   const [tab, setTab] = useState<View>('home')
   const [account, setAccount] = useState<AccountView | undefined>(undefined)
+  const statsAccountUid = account?.loggedIn === true ? account.user?.uid : undefined
+  useEffect(() => { setStatsAccount(statsAccountUid) }, [statsAccountUid])
   const [accountBusy, setAccountBusy] = useState(false)
   const [accountError, setAccountError] = useState<Failure | undefined>(undefined)
   const [catalogue, setCatalogue] = useState<Catalogue | undefined>(undefined)
   const [toysBusy, setToysBusy] = useState(false)
   const [toysError, setToysError] = useState<Failure | undefined>(undefined)
   const [toysReset, setToysReset] = useState(0)
+  const [notifyNewCount, setNotifyNewCount] = useState(0)
   const [selected, setSelected] = useState<ToySummary | undefined>(undefined)
   const [prefill, setPrefill] = useState<PublishPrefill | undefined>(undefined)
   const [note, setNote] = useState<string | undefined>(undefined)
@@ -268,9 +272,10 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
 
   /** Switch一级入口; the two external entries also open their site. */
   const selectTab = useCallback((next: Tab): void => {
-    // The forum is embedded like the More-info pages; the WeCom review support
-    // has no embeddable page and still opens externally.
-    if (next === 'support') openLink(TOY_LINKS.support)
+    // External destinations open in the browser; the panel keeps only the
+    // fallback link card for popup-blocked cases.
+    if (next === 'forum') openLink(TOY_LINKS.forum)
+    else if (next === 'support') openLink(TOY_LINKS.support)
     setTab(next)
   }, [])
 
@@ -306,6 +311,22 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   }, [])
 
   const loggedIn = account?.loggedIn === true && account.user !== undefined
+
+  // Fetch the unread count once per account sign-in so the Notifications tab
+  // can advertise new items before the user opens it.
+  useEffect(() => {
+    if (!loggedIn) {
+      setNotifyNewCount(0)
+      return
+    }
+    let disposed = false
+    void call<NotifyFeed>('notifications', () => ns.notifications(0)).then((outcome) => {
+      if (!disposed && outcome.ok) setNotifyNewCount(outcome.value.newCount ?? 0)
+    })
+    return () => {
+      disposed = true
+    }
+  }, [ns, loggedIn, statsAccountUid])
   const binaryMissing = accountError?.kind === 'binary-missing'
     || (account?.ok === false && account.error?.kind === 'binary-missing')
   const initial = account?.user !== undefined ? account.user.name.slice(0, 1).toUpperCase() : '?'
@@ -375,6 +396,9 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
           entry.label,
           entry.id === 'toys' && catalogue !== undefined
             ? h('span', { className: 'toy-tab-count' }, String(catalogue.total))
+            : null,
+          entry.id === 'notify' && notifyNewCount > 0
+            ? h('span', { className: 'toy-tab-badge', title: copy.tabNotify }, notifyNewCount > 99 ? '99+' : String(notifyNewCount))
             : null,
         ),
       ),
@@ -541,6 +565,8 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
                 onStatsToy: openStats,
                 onUpdateToy: startUpdate,
                 onLogin: () => void login(),
+                toysError,
+                onRetryToys: () => void loadToys(),
                 onNavigate: selectTab,
               }),
             ),
@@ -618,12 +644,12 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
             h(
               'div',
               { hidden: tab !== 'forum' },
-              h(EmbedView, {
+              h(ExternalView, {
                 copy,
                 title: copy.tabForum,
                 description: copy.forumDesc,
-                url: TOY_LINKS.forum,
-                active: tab === 'forum',
+                href: TOY_LINKS.forum,
+                buttonLabel: copy.forumOpen,
               }),
             ),
             h(
@@ -640,7 +666,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
             h(
               'div',
               { hidden: tab !== 'info' },
-              h(InfoView, { copy, active: tab === 'info' }),
+              h(InfoView, { copy }),
             ),
           ),
       note === undefined

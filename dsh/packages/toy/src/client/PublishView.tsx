@@ -717,7 +717,6 @@ export function PublishView({
             copy.updateAction,
           ),
         ),
-        h(Button, { size: 'sm', onClick: () => resetForm(true), disabled: prepBusy || submitBusy }, h(Icon, { name: 'refresh' }), copy.resetForm),
       ),
     }),
     h(

@@ -15,6 +15,7 @@ import { formatUnixTime, statusTone, toyPageUrl, visibilityLabel } from './api.t
 import { filterToys } from './filters.js'
 import type { SortBy } from './filters.js'
 import type { Copy } from './i18n.ts'
+import { TOY_LINKS } from './links.ts'
 import { slicePage } from './paging.js'
 import { Badge, Button, CopyButton, Empty, FailureBanner, Icon, Skeleton } from './ui.tsx'
 import type { ToySummary } from '../shared/types.ts'
@@ -124,7 +125,7 @@ function ToyDetail({
           'a',
           {
             className: 'toy-btn',
-            href: 'https://www.bilibili.com/toy/publish/?tab=records',
+            href: TOY_LINKS.publishRecords,
             target: '_blank',
             rel: 'noreferrer',
             'data-size': 'sm',

@@ -7,7 +7,7 @@
  */
 
 import { createElement as h, useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { ChangeEvent, ReactNode } from 'react'
+import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 
 import { matchToy } from './filters.js'
 import type { Copy } from './i18n.ts'
@@ -33,13 +33,45 @@ export function ToyPicker({
 }): ReactNode {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [activeIndex, setActiveIndex] = useState(-1)
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const listId = useId()
   const selected = toys.find((toy) => toy.id === value)
   const results = useMemo(
     () => toys.filter((toy) => matchToy(toy, query)).slice(0, MAX_RESULTS),
     [toys, query],
   )
+
+  useEffect(() => {
+    setActiveIndex(-1)
+  }, [query, open])
+
+  const choose = (toy: ToySummary): void => {
+    onChange(toy)
+    setOpen(false)
+    setQuery('')
+    triggerRef.current?.focus()
+  }
+
+  const onSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveIndex((index) => Math.min(results.length - 1, index + 1))
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveIndex((index) => Math.max(0, index - 1))
+    } else if (event.key === 'Enter') {
+      const toy = results[activeIndex]
+      if (toy !== undefined) {
+        event.preventDefault()
+        choose(toy)
+      }
+    } else if (event.key === 'Escape') {
+      setOpen(false)
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -68,6 +100,7 @@ export function ToyPicker({
         'aria-haspopup': 'listbox',
         'aria-expanded': open,
         'aria-controls': listId,
+        ref: triggerRef,
         onClick: () => setOpen((current) => !current),
       },
       h(Icon, { name: 'search' }),
@@ -86,9 +119,15 @@ export function ToyPicker({
             className: 'toy-input toy-picker-search',
             value: query,
             autoFocus: true,
+            ref: inputRef,
             placeholder: copy.pickerSearch,
             'aria-label': copy.pickerSearch,
+            role: 'combobox',
+            'aria-expanded': true,
+            'aria-controls': listId,
+            'aria-activedescendant': results[activeIndex] === undefined ? undefined : `${listId}-opt-${results[activeIndex].id}`,
             onChange: (event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value),
+            onKeyDown: onSearchKeyDown,
           }),
           results.length === 0
             ? h('div', { className: 'toy-picker-empty' }, copy.pickerNoMatches)
@@ -104,13 +143,11 @@ export function ToyPicker({
                       {
                         type: 'button',
                         role: 'option',
+                        id: `${listId}-opt-${toy.id}`,
                         'aria-selected': toy.id === value,
-                        className: 'toy-picker-option',
-                        onClick: () => {
-                          onChange(toy)
-                          setOpen(false)
-                          setQuery('')
-                        },
+                        className: activeIndex >= 0 && results[activeIndex]?.id === toy.id ? 'toy-picker-option toy-picker-option-active' : 'toy-picker-option',
+                        onMouseEnter: () => setActiveIndex(results.findIndex((entry) => entry.id === toy.id)),
+                        onClick: () => choose(toy),
                       },
                       h('span', { className: 'toy-picker-option-title', title: toy.title }, toy.title),
                       h(
