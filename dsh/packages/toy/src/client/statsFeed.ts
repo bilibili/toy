@@ -69,28 +69,28 @@ function key(prefix: string, suffix: string): string {
   return `${prefix}${accountScope}:${suffix}`
 }
 
-function readJson(key: string): unknown {
+function readJson(storageKey: string): unknown {
   try {
-    const raw = storage()?.getItem(key)
+    const raw = storage()?.getItem(storageKey)
     return raw === undefined || raw === null ? undefined : JSON.parse(raw)
   } catch {
     return undefined
   }
 }
 
-function writeJson(key: string, value: unknown): void {
+function writeJson(storageKey: string, value: unknown): void {
   try {
     const serialized = JSON.stringify(value)
     if (serialized.length > MAX_PERSIST_BYTES) return
-    storage()?.setItem(key, serialized)
+    storage()?.setItem(storageKey, serialized)
   } catch {
     // Quota exceeded or storage disabled: the in-memory cache still works.
   }
 }
 
-function removeKey(key: string): void {
+function removeKey(storageKey: string): void {
   try {
-    storage()?.removeItem(key)
+    storage()?.removeItem(storageKey)
   } catch {
     // Ignore storage failures.
   }

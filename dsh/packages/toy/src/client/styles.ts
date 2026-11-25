@@ -247,7 +247,7 @@ const CSS = `
 .toy-tabbar .toy-tabs { align-self: auto; }
 .toy-tab { display: inline-flex; align-items: center; gap: 6px; }
 .toy-tab-count { display: inline-flex; align-items: center; padding: 0 6px; border-radius: 999px; background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-tertiary); font-size: 10px; line-height: 16px; }
-.toy-tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; margin-left: 2px; border-radius: 999px; background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-inverted); font-size: 10px; font-weight: 650; line-height: 1; }
+.toy-tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; margin-left: 2px; border-radius: 999px; background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-inverted); font-size: 10px; font-weight: 650; line-height: 1; }
 .toy-tab[aria-selected="true"] .toy-tab-count { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); }
 .toy-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .toy-toast { position: fixed; right: 24px; bottom: 88px; z-index: 1300; display: flex; align-items: flex-start; gap: 8px; max-width: min(440px, calc(100vw - 48px)); padding: 10px 14px; border-radius: var(--dsw-radius-lg); border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: var(--dsw-shadow-lv3); font-size: 12px; line-height: 1.5; animation: toy-toast-in .16s ease; }

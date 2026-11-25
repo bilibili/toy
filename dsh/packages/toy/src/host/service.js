@@ -473,21 +473,25 @@ export function createToyService(config, logger = {}) {
       if (!result.ok) throw throwCli(result, 'notify failed')
       const data = result.data ?? {}
       const items = Array.isArray(data.items) ? data.items : []
+      const feedUrl = normalizeActionUrl(data.notification_url)
       return {
-        items: items.map(item => ({
-          id: Number(item.id ?? 0),
-          category: Number(item.category ?? 0),
-          ...(typeof item.origin === 'number' ? { origin: item.origin } : {}),
-          ...(typeof item.template_code === 'string' ? { templateCode: item.template_code } : {}),
-          title: typeof item.title === 'string' ? item.title : '',
-          ...(typeof item.body === 'string' ? { body: item.body } : {}),
-          ...(typeof item.action_text === 'string' ? { actionText: item.action_text } : {}),
-          ...(normalizeActionUrl(item.action_url) === undefined ? {} : { actionUrl: normalizeActionUrl(item.action_url) }),
-          ...(typeof item.ctime === 'number' ? { time: item.ctime } : {}),
-        })),
+        items: items.map((item) => {
+          const actionUrl = normalizeActionUrl(item.action_url)
+          return {
+            id: Number(item.id ?? 0),
+            category: Number(item.category ?? 0),
+            ...(typeof item.origin === 'number' ? { origin: item.origin } : {}),
+            ...(typeof item.template_code === 'string' ? { templateCode: item.template_code } : {}),
+            title: typeof item.title === 'string' ? item.title : '',
+            ...(typeof item.body === 'string' ? { body: item.body } : {}),
+            ...(typeof item.action_text === 'string' ? { actionText: item.action_text } : {}),
+            ...(actionUrl === undefined ? {} : { actionUrl }),
+            ...(typeof item.ctime === 'number' ? { time: item.ctime } : {}),
+          }
+        }),
         ...(typeof data.new_count === 'number' ? { newCount: data.new_count } : {}),
         ...(typeof data.has_more === 'boolean' ? { hasMore: data.has_more } : {}),
-        ...(normalizeActionUrl(data.notification_url) === undefined ? {} : { notificationUrl: normalizeActionUrl(data.notification_url) }),
+        ...(feedUrl === undefined ? {} : { notificationUrl: feedUrl }),
       }
     },
 

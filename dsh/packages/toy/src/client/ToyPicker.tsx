@@ -70,6 +70,7 @@ export function ToyPicker({
       }
     } else if (event.key === 'Escape') {
       setOpen(false)
+      triggerRef.current?.focus()
     }
   }
 

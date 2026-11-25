@@ -274,12 +274,15 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
 
   /** Switch一级入口; the two external entries also open their site. */
   const selectTab = useCallback((next: Tab): void => {
+    // Re-clicking the active entry must not open the browser again; the tab's
+    // fallback card still has its own link for that.
+    if (next === tab) return
     // External destinations open in the browser; the panel keeps only the
     // fallback link card for popup-blocked cases.
     if (next === 'forum') openLink(TOY_LINKS.forum)
     else if (next === 'support') openLink(TOY_LINKS.support)
     setTab(next)
-  }, [])
+  }, [tab])
 
   const refreshAll = useCallback((): void => {
     setToysReset((token) => token + 1)
@@ -612,6 +615,8 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
                 onSelectToy: selectToy,
                 onClearToy: () => setSelected(undefined),
                 onGoPublish: () => setTab('publish'),
+                catalogueError: toysError,
+                onRetryCatalogue: () => void loadToys(),
               }),
             ),
             h(

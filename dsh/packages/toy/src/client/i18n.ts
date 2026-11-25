@@ -194,7 +194,6 @@ const ZH = {
   infoSubtitle: '官方文档与 FAQ 均在新标签页打开；插件只做导航，不内嵌页面、不抓取接口、不托管登录态。',
   infoSquare: 'Toy 广场',
   infoSquareDesc: '看看平台上其他创作者发布的 Toy。',
-  infoOpenExternal: '在浏览器打开',
   infoOpenPlatform: '打开发布平台',
   infoSdk: 'SDK',
   infoSdkDesc: '在 Toy 页面里调用跳转、分享、存档等平台能力；文档见发布平台顶部「SDK 和 CLI」。',
@@ -270,7 +269,7 @@ const ZH = {
   commentLabel: '评论',
   shareLabel: '分享',
   statsRangeHint: '统计窗口截止到昨天，由 toy CLI 返回。',
-  statsUvHint: 'PV 可跨日相加；UV 按天去重，区间 UV 为逐日相加，不代表跨天去重人数。',
+  statsUvHint: 'PV 可跨日相加；UV 按天去重、跨天不可相加，所以这里用「日均」和「峰值日」展示 UV。',
   dayTooltip: (date: string, pv: number, uv: number, retention?: number) =>
     retention === undefined ? `${date} · PV ${pv} · UV ${uv}` : `${date} · PV ${pv} · UV ${uv} · 留存 ${retention}%`,
   statsOverviewHint: '按昨日 PV 降序；每行显示这个 Toy 的最近趋势和窗口合计，点一行查看完整统计。',
@@ -662,7 +661,6 @@ const EN: typeof ZH = {
   infoSubtitle: 'Official docs and the FAQ open in a new tab; the panel only links out — no embedded pages, API scraping or hosted login session.',
   infoSquare: 'Toy square',
   infoSquareDesc: 'Browse Toys published by other creators.',
-  infoOpenExternal: 'Open in browser',
   infoOpenPlatform: 'Open publish platform',
   infoSdk: 'SDK',
   infoSdkDesc: 'Call navigation, sharing, storage and other platform capabilities from a Toy page; see “SDK and CLI” on the publish platform.',
@@ -736,7 +734,7 @@ const EN: typeof ZH = {
   commentLabel: 'Comments',
   shareLabel: 'Shares',
   statsRangeHint: 'The window ends yesterday, as reported by the toy CLI.',
-  statsUvHint: 'PV is additive; UV is deduplicated per day, so a window UV is the sum of daily UVs, not unique people across days.',
+  statsUvHint: 'PV is additive across days; UV is deduplicated per day and cannot be added across days, so UV is shown as a daily average and a peak day.',
   dayTooltip: (date: string, pv: number, uv: number, retention?: number) =>
     retention === undefined ? `${date} · PV ${pv} · UV ${uv}` : `${date} · PV ${pv} · UV ${uv} · retention ${retention}%`,
   statsOverviewHint: 'Ranked by yesterday’s PV; each row shows that Toy’s recent trend and window totals. Click a row for full stats.',

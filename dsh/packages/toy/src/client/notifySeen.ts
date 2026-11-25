@@ -25,10 +25,18 @@ export function readNotifySeen(uid: number | undefined): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
+/**
+ * Record the newest notification the creator has seen. The marker only ever
+ * moves forward: opening a narrower category must not make already-read
+ * notifications look new again.
+ */
 export function writeNotifySeen(uid: number | undefined, latestCtime: number): void {
+  if (!Number.isFinite(latestCtime)) return
   try {
     const map = readMap()
-    map[uid === undefined ? 'anon' : String(uid)] = latestCtime
+    const key = uid === undefined ? 'anon' : String(uid)
+    const previous = map[key]
+    map[key] = typeof previous === 'number' && Number.isFinite(previous) ? Math.max(previous, latestCtime) : latestCtime
     window.localStorage.setItem(KEY, JSON.stringify(map))
   } catch {
     // Storage unavailable: the badge falls back to session behaviour.

@@ -241,6 +241,8 @@ export function StatsView({
   onSelectToy,
   onClearToy,
   onGoPublish,
+  catalogueError,
+  onRetryCatalogue,
 }: {
   readonly copy: Copy
   readonly zh: boolean
@@ -253,6 +255,9 @@ export function StatsView({
   readonly onClearToy?: () => void
   /** Jump to the publish form (cold-start empty states). */
   readonly onGoPublish?: () => void
+  /** The catalogue load failure, so the tab is not a blank page. */
+  readonly catalogueError?: Failure
+  readonly onRetryCatalogue?: () => void
 }): ReactNode {
   const [days, setDays] = useState<Days>(7)
   const [hovered, setHovered] = useState<string | undefined>(undefined)
@@ -343,8 +348,13 @@ export function StatsView({
     setOverviewTotal(items.length)
     setOverviewPage(1)
     const partial = new Map<number, ToyStats | undefined>()
+    /** Repaint at most every 150 ms: one sort per finished Toy is wasted work. */
+    let paintedAt = 0
     const showPartial = (): void => {
       if (overviewSeq.current !== run) return
+      const now = Date.now()
+      if (now - paintedAt < 150) return
+      paintedAt = now
       const rows = items
         .filter((toy) => partial.has(toy.id))
         .map((toy) => overviewRow(toy, sliceToyStats(partial.get(toy.id), days)))
@@ -557,6 +567,16 @@ export function StatsView({
         h(Button, { size: 'sm', onClick: refreshOverview, disabled: overviewBusy }, h(Icon, { name: 'refresh' }), copy.statsRefresh),
       ),
     }),
+    toys === undefined && catalogueError !== undefined
+      ? h(
+          'div',
+          { className: 'toy-panel' },
+          h(FailureBanner, { failure: catalogueError, copy }),
+          onRetryCatalogue === undefined
+            ? null
+            : h(Button, { size: 'sm', onClick: onRetryCatalogue }, h(Icon, { name: 'refresh' }), copy.refresh),
+        )
+      : null,
     overviewError === undefined ? null : h(FailureBanner, { failure: overviewError, copy }),
     overviewBusy
       ? h(
