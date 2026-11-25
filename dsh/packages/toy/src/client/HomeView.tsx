@@ -9,6 +9,7 @@ import { createElement as h, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { formatCount } from './api.ts'
+import { TOY_LINKS } from './links.ts'
 import type { Failure, ToyNamespace } from './api.ts'
 import type { Copy } from './i18n.ts'
 import { FEED_MIN_DAYS, loadToyStats, setStatsAccount } from './statsFeed.ts'
@@ -318,14 +319,21 @@ export function HomeView({
             h(
               'ol',
               { className: 'toy-onboarding-steps' },
-              [copy.onboardingStepLogin, copy.onboardingStepCli, copy.onboardingStepPublish, copy.onboardingStepData].map((step, index) =>
+              [copy.onboardingStepLogin, copy.onboardingStepCli, copy.onboardingStepPermission, copy.onboardingStepPublish, copy.onboardingStepData].map((step, index) =>
                 h('li', { key: String(index) }, step),
               ),
             ),
+            h('p', { className: 'toy-caption', style: { margin: 0 } }, copy.onboardingPermissionNote),
             h(
               'div',
               { className: 'toy-onboarding-actions' },
               h(Button, { variant: 'primary', onClick: onPublish }, h(Icon, { name: 'plus' }), copy.onboardingPublishCta),
+              h(
+                'a',
+                { className: 'toy-btn', href: TOY_LINKS.apply, target: '_blank', rel: 'noreferrer' },
+                h(Icon, { name: 'external' }),
+                copy.onboardingApplyCta,
+              ),
               h(Button, { onClick: () => onNavigate('info') }, h(Icon, { name: 'info' }), copy.onboardingDocsCta),
             ),
           )

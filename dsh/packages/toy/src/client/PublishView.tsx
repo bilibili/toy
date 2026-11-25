@@ -19,6 +19,7 @@ import type { Failure, ToyNamespace } from './api.ts'
 import type { Copy } from './i18n.ts'
 import { Badge, Banner, Button, Dialog, Empty, FailureBanner, Field, Icon, Loading, SectionHead, Toolbar } from './ui.tsx'
 import { ToyPicker } from './ToyPicker.tsx'
+import { TOY_LINKS } from './links.ts'
 import type {
   ActionResult,
   PublishInput,
@@ -676,6 +677,10 @@ export function PublishView({
   const showPrepare = prep === undefined || expiry.expired || stale || submitError !== undefined
   const prepareLabel = prep !== undefined && expiry.expired ? copy.reprepare : copy.prepare
 
+  const permissionRejected = [formError, precheckError?.message, prepError?.message, submitError?.message]
+    .filter((value) => value !== undefined)
+    .some((value) => /权限|资格|permission|forbidden|白名单|申请|not authorized/i.test(String(value)))
+
   return h(
     'div',
     { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
@@ -733,6 +738,14 @@ export function PublishView({
         'div',
         { className: 'toy-panel' },
         stepHead(1, copy.publishStep1, copy.publishStep1Hint),
+        action === 'create' && toys !== undefined && toyItems.length === 0
+          ? h(
+              'div',
+              { className: 'toy-permission-hint' },
+              h('span', { className: 'toy-caption' }, copy.publishPermissionHint),
+              h('a', { className: 'toy-link', href: TOY_LINKS.apply, target: '_blank', rel: 'noreferrer' }, h(Icon, { name: 'external' }), copy.publishApplyCta),
+            )
+          : null,
         h(
           'div',
           { className: 'toy-form' },
@@ -900,6 +913,14 @@ export function PublishView({
         precheckBusy ? h(Loading, { label: copy.prechecking }) : null,
         prepError === undefined ? null : h(FailureBanner, { failure: prepError, copy }),
         submitError === undefined ? null : h(FailureBanner, { failure: submitError, copy }),
+        permissionRejected
+          ? h(
+              Banner,
+              { tone: 'warn' },
+              copy.publishPermissionError,
+              h('a', { className: 'toy-link', href: TOY_LINKS.apply, target: '_blank', rel: 'noreferrer' }, h(Icon, { name: 'external' }), copy.publishApplyCta),
+            )
+          : null,
         prepBusy ? h(Loading, { label: copy.preparing }) : null,
         prep === undefined
           ? h('div', { className: 'toy-caption' }, copy.publishStep4Hint)
