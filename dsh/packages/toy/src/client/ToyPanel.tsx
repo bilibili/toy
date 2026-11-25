@@ -431,76 +431,76 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
         h(
           'div',
           { className: 'toy-topbar' },
-        h(
-          'button',
-          { type: 'button', className: 'toy-brand', onClick: () => setTab('home'), title: copy.home },
-          h('span', { className: 'toy-brand-mark' }, h(ToyMark, { size: 30 })),
-          h(
-            'div',
-            { className: 'toy-brand-text' },
-            h('h1', { className: 'toy-title' }, copy.appTitle),
-            h('p', { className: 'toy-topbar-sub', title: copy.appSubtitle }, copy.appSubtitle),
-          ),
-        ),
-        h(
-          'div',
-          { className: 'toy-topbar-actions' },
           h(
             'button',
-            {
-              type: 'button',
-              className: 'toy-account-chip',
-              title: copy.accountChipHint,
-              'aria-label': copy.accountChipHint,
-              onClick: () => setMaintenanceOpen(true),
-            },
+            { type: 'button', className: 'toy-brand', onClick: () => setTab('home'), title: copy.home },
+            h('span', { className: 'toy-brand-mark' }, h(ToyMark, { size: 30 })),
             h(
-              'span',
-              { className: 'toy-avatar', 'data-state': loggedIn ? 'in' : 'out', 'aria-hidden': true },
-              loggedIn ? initial : h(Icon, { name: 'user', size: 14 }),
-            ),
-            h(
-              'span',
-              { className: 'toy-account-chip-text' },
-              h(
-                'span',
-                { className: 'toy-account-chip-name' },
-                account === undefined ? copy.accountLoading : loggedIn ? (account.user?.name ?? '') : copy.notLoggedIn,
-              ),
-              h(
-                'span',
-                { className: 'toy-account-chip-meta' },
-                loggedIn && account.user !== undefined ? copy.uid(account.user.uid) : copy.maintenance,
-              ),
+              'div',
+              { className: 'toy-brand-text' },
+              h('h1', { className: 'toy-title' }, copy.appTitle),
+              h('p', { className: 'toy-topbar-sub', title: copy.appSubtitle }, copy.appSubtitle),
             ),
           ),
           h(
-            Button,
-            { size: 'sm', onClick: refreshAll, disabled: accountBusy || toysBusy, title: copy.refresh },
-            h(Icon, { name: 'refresh' }),
-            copy.refresh,
-          ),
-          loggedIn
-            ? h(
-                Button,
-                { size: 'sm', onClick: () => void logout(), disabled: accountBusy },
-                h(Icon, { name: 'logout' }),
-                copy.logout,
-              )
-            : h(
-                Button,
-                { size: 'sm', variant: 'primary', onClick: () => void login(), disabled: accountBusy },
-                h(Icon, { name: 'login' }),
-                accountBusy ? copy.loggingIn : copy.login,
+            'div',
+            { className: 'toy-topbar-actions' },
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'toy-account-chip',
+                title: copy.accountChipHint,
+                'aria-label': copy.accountChipHint,
+                onClick: () => setMaintenanceOpen(true),
+              },
+              h(
+                'span',
+                { className: 'toy-avatar', 'data-state': loggedIn ? 'in' : 'out', 'aria-hidden': true },
+                loggedIn ? initial : h(Icon, { name: 'user', size: 14 }),
               ),
-          h(
-            Button,
-            { size: 'sm', onClick: () => setMaintenanceOpen(true), title: copy.maintenanceTitle },
-            h(Icon, { name: 'settings' }),
-            copy.maintenance,
+              h(
+                'span',
+                { className: 'toy-account-chip-text' },
+                h(
+                  'span',
+                  { className: 'toy-account-chip-name' },
+                  account === undefined ? copy.accountLoading : loggedIn ? (account.user?.name ?? '') : copy.notLoggedIn,
+                ),
+                h(
+                  'span',
+                  { className: 'toy-account-chip-meta' },
+                  loggedIn && account.user !== undefined ? copy.uid(account.user.uid) : copy.maintenance,
+                ),
+              ),
+            ),
+            h(
+              Button,
+              { size: 'sm', onClick: refreshAll, disabled: accountBusy || toysBusy, title: copy.refresh },
+              h(Icon, { name: 'refresh' }),
+              copy.refresh,
+            ),
+            loggedIn
+              ? h(
+                  Button,
+                  { size: 'sm', onClick: () => void logout(), disabled: accountBusy },
+                  h(Icon, { name: 'logout' }),
+                  copy.logout,
+                )
+              : h(
+                  Button,
+                  { size: 'sm', variant: 'primary', onClick: () => void login(), disabled: accountBusy },
+                  h(Icon, { name: 'login' }),
+                  accountBusy ? copy.loggingIn : copy.login,
+                ),
+            h(
+              Button,
+              { size: 'sm', onClick: () => setMaintenanceOpen(true), title: copy.maintenanceTitle },
+              h(Icon, { name: 'settings' }),
+              copy.maintenance,
+            ),
           ),
         ),
-      ),
         binaryMissing ? null : tabbar,
       ),
       accountError === undefined || binaryMissing || maintenanceOpen ? null : h(FailureBanner, { failure: accountError, copy }),
