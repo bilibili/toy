@@ -35,6 +35,29 @@ test('classifies the failure modes the tools react to', () => {
   const business = classifyFailure({ message: 'status=500 code=307000 message=index.html 解压后超过 1MB 上限', exitCode: 1, timedOut: false, killed: false })
   assert.equal(business.kind, 'business')
   assert.equal(business.code, 307000)
+  const denied = classifyFailure({ message: 'status=403 code=307403 message=当前账号还没有 Toy 发布权限，请先申请', exitCode: 1, timedOut: false, killed: false })
+  assert.equal(denied.kind, 'permission-required')
+  assert.equal(denied.code, 307403)
+  assert.equal(denied.message, '当前账号还没有 Toy 发布权限，请先申请')
+  assert.match(denied.hint, /https:\/\/www\.bilibili\.com\/toy\/intro/)
+  assert.equal(
+    classifyFailure({ message: 'status=403 code=307403 message=forbidden: apply for access first', exitCode: 1, timedOut: false, killed: false }).kind,
+    'permission-required',
+  )
+  assert.equal(
+    classifyFailure({ message: '该账号未开通 Toy 权限，请先申请', exitCode: 1, timedOut: false, killed: false }).kind,
+    'permission-required',
+  )
+  // Local failures are never permission rejections, however they are worded:
+  // a path segment, or an EACCES the OS reports in English.
+  assert.equal(
+    classifyFailure({ message: 'open /tmp/permission-test/index.html: no such file or directory', exitCode: 1, timedOut: false, killed: false }).kind,
+    'cli',
+  )
+  assert.equal(
+    classifyFailure({ message: 'error: permission denied while reading the package', exitCode: 1, timedOut: false, killed: false }).kind,
+    'cli',
+  )
   assert.equal(classifyFailure({ message: 'Error: unknown flag: --nope', exitCode: 1, timedOut: false, killed: false }).kind, 'usage')
   assert.equal(classifyFailure({ message: '该操作会直接提交审核；非交互环境请加 --yes', exitCode: 1, timedOut: false, killed: false }).kind, 'needs-yes')
   assert.equal(classifyFailure({ message: 'spawn toy ENOENT', exitCode: null, timedOut: false, killed: false, code: 'ENOENT' }).kind, 'binary-missing')
@@ -61,6 +84,15 @@ test('surfaces a business failure with its server code and message', async () =>
   assert.equal(result.error.kind, 'business')
   assert.equal(result.error.code, 307000)
   assert.match(result.error.message, /index\.html/)
+})
+
+test('surfaces a permission rejection with the application hint', async () => {
+  const result = await cli({ env: { FAKE_TOY_ERROR: 'permission' } }).runJson(['create', '/tmp/x'])
+  assert.equal(result.ok, false)
+  assert.equal(result.error.kind, 'permission-required')
+  assert.equal(result.error.code, 307403)
+  assert.match(result.error.message, /权限/)
+  assert.match(result.error.hint, /https:\/\/www\.bilibili\.com\/toy\/intro/)
 })
 
 test('reports a timeout instead of hanging', async () => {

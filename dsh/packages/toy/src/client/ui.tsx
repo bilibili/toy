@@ -103,13 +103,42 @@ export function Banner({
 }
 
 /** Render a normalized failure with its kind and hint. */
-export function FailureBanner({ failure, copy }: { readonly failure: Failure; readonly copy: Copy }): ReactNode {
+export function FailureBanner({
+  failure,
+  copy,
+  actions,
+}: {
+  readonly failure: Failure
+  readonly copy: Copy
+  /** Optional next step, e.g. the permission application link. */
+  readonly actions?: ReactNode
+}): ReactNode {
   return h(
     Banner,
-    { tone: 'error', title: copy.operationFailed(failure.message) },
+    {
+      tone: 'error',
+      title: copy.operationFailed(failure.message),
+      ...(actions === undefined ? {} : { actions }),
+    },
     h('span', { className: 'toy-caption' }, copy.errorKind(failure.kind)),
     failure.hint === undefined ? null : h('div', { className: 'toy-field-hint' }, `${copy.hintLabel}: ${failure.hint}`),
   )
+}
+
+/**
+ * An official link that opens in a new tab, with the shared external glyph.
+ * Pass `className: 'toy-btn'` where it should read as a button.
+ */
+export function ExternalLink({
+  href,
+  label,
+  className = 'toy-link',
+}: {
+  readonly href: string
+  readonly label: string
+  readonly className?: string
+}): ReactNode {
+  return h('a', { className, href, target: '_blank', rel: 'noreferrer' }, h(Icon, { name: 'external' }), label)
 }
 
 /** Empty state. */

@@ -16,7 +16,7 @@ import { FEED_MIN_DAYS, loadToyStats, setStatsAccount } from './statsFeed.ts'
 import type { FeedProgress } from './statsFeed.ts'
 import { accountSummary } from './statsAggregate.js'
 import type { AccountSummary } from './statsAggregate.js'
-import { Badge, Button, Empty, FailureBanner, Icon, Skeleton } from './ui.tsx'
+import { Badge, Button, Empty, ExternalLink, FailureBanner, Icon, Skeleton } from './ui.tsx'
 import type { AccountView, ToySummary } from '../shared/types.ts'
 
 /** One KPI card in the dashboard. */
@@ -328,12 +328,7 @@ export function HomeView({
               'div',
               { className: 'toy-onboarding-actions' },
               h(Button, { variant: 'primary', onClick: onPublish }, h(Icon, { name: 'plus' }), copy.onboardingPublishCta),
-              h(
-                'a',
-                { className: 'toy-btn', href: TOY_LINKS.apply, target: '_blank', rel: 'noreferrer' },
-                h(Icon, { name: 'external' }),
-                copy.onboardingApplyCta,
-              ),
+              h(ExternalLink, { className: 'toy-btn', href: TOY_LINKS.apply, label: copy.onboardingApplyCta }),
               h(Button, { onClick: () => onNavigate('info') }, h(Icon, { name: 'info' }), copy.onboardingDocsCta),
             ),
           )

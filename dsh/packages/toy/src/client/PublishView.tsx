@@ -17,7 +17,7 @@ import type { ChangeEvent, ReactNode } from 'react'
 import { actionLabel, call, changeFieldLabel, changeValue, countdown, failureOf, toyPageUrl } from './api.ts'
 import type { Failure, ToyNamespace } from './api.ts'
 import type { Copy } from './i18n.ts'
-import { Badge, Banner, Button, Dialog, Empty, FailureBanner, Field, Icon, Loading, SectionHead, Toolbar } from './ui.tsx'
+import { Badge, Banner, Button, Dialog, Empty, ExternalLink, FailureBanner, Field, Icon, Loading, SectionHead, Toolbar } from './ui.tsx'
 import { ToyPicker } from './ToyPicker.tsx'
 import { TOY_LINKS } from './links.ts'
 import type {
@@ -677,9 +677,15 @@ export function PublishView({
   const showPrepare = prep === undefined || expiry.expired || stale || submitError !== undefined
   const prepareLabel = prep !== undefined && expiry.expired ? copy.reprepare : copy.prepare
 
-  const permissionRejected = [formError, precheckError?.message, prepError?.message, submitError?.message]
-    .filter((value) => value !== undefined)
-    .some((value) => /权限|资格|permission|forbidden|白名单|申请|not authorized/i.test(String(value)))
+  // The host classifies a platform permission rejection as `permission-required`
+  // (src/cli.js classifyFailure). Only prepare and submit reach the platform, so
+  // the local form and precheck failures are deliberately not part of the probe.
+  // A rejection is fixed by applying for access, not by retrying, so the failure
+  // that carried the kind gets the application link instead of a second banner.
+  const permissionActions = (failure: Failure | undefined): ReactNode =>
+    failure?.kind === 'permission-required'
+      ? h(ExternalLink, { className: 'toy-btn', href: TOY_LINKS.apply, label: copy.publishApplyCta })
+      : undefined
 
   return h(
     'div',
@@ -743,7 +749,7 @@ export function PublishView({
               'div',
               { className: 'toy-permission-hint' },
               h('span', { className: 'toy-caption' }, copy.publishPermissionHint),
-              h('a', { className: 'toy-link', href: TOY_LINKS.apply, target: '_blank', rel: 'noreferrer' }, h(Icon, { name: 'external' }), copy.publishApplyCta),
+              h(ExternalLink, { href: TOY_LINKS.apply, label: copy.publishApplyCta }),
             )
           : null,
         h(
@@ -911,16 +917,8 @@ export function PublishView({
         precheckError === undefined ? null : h(FailureBanner, { failure: precheckError, copy }),
         precheck !== undefined && !precheckBusy ? h(PrecheckReport, { report: precheck, copy, zh }) : null,
         precheckBusy ? h(Loading, { label: copy.prechecking }) : null,
-        prepError === undefined ? null : h(FailureBanner, { failure: prepError, copy }),
-        submitError === undefined ? null : h(FailureBanner, { failure: submitError, copy }),
-        permissionRejected
-          ? h(
-              Banner,
-              { tone: 'warn' },
-              copy.publishPermissionError,
-              h('a', { className: 'toy-link', href: TOY_LINKS.apply, target: '_blank', rel: 'noreferrer' }, h(Icon, { name: 'external' }), copy.publishApplyCta),
-            )
-          : null,
+        prepError === undefined ? null : h(FailureBanner, { failure: prepError, copy, actions: permissionActions(prepError) }),
+        submitError === undefined ? null : h(FailureBanner, { failure: submitError, copy, actions: permissionActions(submitError) }),
         prepBusy ? h(Loading, { label: copy.preparing }) : null,
         prep === undefined
           ? h('div', { className: 'toy-caption' }, copy.publishStep4Hint)
@@ -974,13 +972,7 @@ export function PublishView({
                 : h(
                     'div',
                     { style: { display: 'flex', flexDirection: 'column', gap: 4 } },
-                    h(
-                      'a',
-                      { className: 'toy-link', href: previewUrl, target: '_blank', rel: 'noreferrer' },
-                      h(Icon, { name: 'external' }),
-                      ' ',
-                      copy.previewOpen,
-                    ),
+                    h(ExternalLink, { href: previewUrl, label: copy.previewOpen }),
                     h('span', { className: 'toy-finding-file' }, previewUrl),
                   ),
               expiry.expired
