@@ -89,6 +89,7 @@ export function accountSummary(toys, statsById) {
   let last7Uv = 0
   let prev7Pv = 0
   let prev7Uv = 0
+  const windowUvByDate = new Map()
   let measured = 0
   let missing = 0
   const interactions = { like: 0, favorite: 0, comment: 0, share: 0 }
@@ -117,6 +118,7 @@ export function accountSummary(toys, statsById) {
       if (windowStart !== undefined && day.date >= windowStart && date !== undefined && day.date <= date) {
         last7Pv += day.pv
         last7Uv += day.uv
+        windowUvByDate.set(day.date, (windowUvByDate.get(day.date) ?? 0) + day.uv)
       }
       if (previousStart !== undefined && previousEnd !== undefined && day.date >= previousStart && day.date <= previousEnd) {
         prev7Pv += day.pv
@@ -133,6 +135,14 @@ export function accountSummary(toys, statsById) {
   }
 
   const interactionTotal = interactions.like + interactions.favorite + interactions.comment + interactions.share
+  let peakUv = 0
+  let peakUvDate
+  for (const [day, uv] of windowUvByDate) {
+    if (uv > peakUv) {
+      peakUv = uv
+      peakUvDate = day
+    }
+  }
   return {
     date,
     yesterdayPv,
@@ -142,6 +152,9 @@ export function accountSummary(toys, statsById) {
     wowPercent: weekAgoPv > 0 ? ((yesterdayPv - weekAgoPv) / weekAgoPv) * 100 : undefined,
     last7Pv,
     last7Uv,
+    last7UvAvg: Math.round(last7Uv / 7),
+    last7UvPeak: peakUv,
+    last7UvPeakDate: peakUvDate,
     prev7Pv,
     prev7Uv,
     wow7PvPercent: prev7Pv > 0 ? ((last7Pv - prev7Pv) / prev7Pv) * 100 : undefined,

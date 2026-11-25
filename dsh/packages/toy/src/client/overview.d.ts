@@ -6,7 +6,6 @@
 import type { ToyStats, ToyStatsDay, ToySummary } from '../shared/types.ts'
 
 /** How many stats requests run at the same time. */
-export const OVERVIEW_CONCURRENCY: number
 
 /** Sparklines never render more than this many days. */
 export const SPARK_DAYS: number

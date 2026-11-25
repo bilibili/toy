@@ -59,7 +59,11 @@ function Chart({
   const last = items[items.length - 1]
   const shown = items.find((item) => item.date === hovered) ?? last
   const retention = shown?.retention === undefined ? undefined : retentionPercent(shown.retention)
-  const shownLabel = copy.dayTooltip(shown?.date ?? '', shown?.pv ?? 0, shown?.uv ?? 0, retention)
+  const avgUv = Math.round(items.reduce((sum, item) => sum + item.uv, 0) / items.length)
+  const shownValues =
+    shown === undefined
+      ? ''
+      : `${copy.pvLabel} ${formatCount(shown.pv)} · ${copy.uvLabel} ${formatCount(shown.uv)}${retention === undefined ? '' : ` · ${copy.retentionLabel} ${retention}%`}`
   /** PV line across the plot's percent box (0–100 in both axes). */
   const pvPoints = items
     .map((item, index) => `${(((index + 0.5) / items.length) * 100).toFixed(2)},${(100 - (item.pv / max) * 100).toFixed(2)}`)
@@ -91,7 +95,7 @@ function Chart({
             role: 'img',
             'aria-label': copy.chartTitle(
               formatCount(items.reduce((sum, item) => sum + item.pv, 0)),
-              formatCount(items.reduce((sum, item) => sum + item.uv, 0)),
+              formatCount(avgUv),
             ),
             onMouseLeave: () => onHover(undefined),
           },
@@ -141,7 +145,7 @@ function Chart({
       h('span', { className: 'toy-chart-day-label' }, shown?.date ?? ''),
       shown === undefined
         ? h('span', { className: 'toy-chart-day-empty' }, copy.chartHoverHint)
-        : h('span', { className: 'toy-chart-day-value' }, shownLabel.replace(`${shown.date} · `, '')),
+        : h('span', { className: 'toy-chart-day-value' }, shownValues),
     ),
     h(
       'div',
@@ -338,6 +342,14 @@ export function StatsView({
     setOverviewFailed(0)
     setOverviewTotal(items.length)
     setOverviewPage(1)
+    const partial = new Map<number, ToyStats | undefined>()
+    const showPartial = (): void => {
+      if (overviewSeq.current !== run) return
+      const rows = items
+        .filter((toy) => partial.has(toy.id))
+        .map((toy) => overviewRow(toy, sliceToyStats(partial.get(toy.id), days)))
+      setOverview(sortOverviewRows(rows, locale))
+    }
     void loadToyStats(
       ns,
       items,
@@ -348,6 +360,10 @@ export function StatsView({
         setOverviewFailed(progress.failed)
       },
       force,
+      (toy, stats) => {
+        partial.set(toy.id, stats)
+        showPartial()
+      },
     )
       .then((statsById) => {
         if (overviewSeq.current !== run) return
@@ -407,6 +423,11 @@ export function StatsView({
     const items = stats?.items ?? []
     const totalPv = items.reduce((sum, item) => sum + item.pv, 0)
     const totalUv = items.reduce((sum, item) => sum + item.uv, 0)
+    const avgUv = items.length === 0 ? 0 : Math.round(totalUv / items.length)
+    const peakUvItem = items.reduce<ToyStats['items'][number] | undefined>(
+      (best, item) => (best === undefined || item.uv > best.uv ? item : best),
+      undefined,
+    )
     const retentionValues = items.filter((item) => item.retention !== undefined).map((item) => retentionPercent(item.retention as number))
     const avgRetention = retentionValues.length === 0 ? undefined : retentionValues.reduce((sum, value) => sum + value, 0) / retentionValues.length
     const dyn = stats?.dynStat
@@ -477,7 +498,10 @@ export function StatsView({
             'div',
             { className: 'toy-kpis' },
             h(Kpi, { label: copy.totalPv, value: formatCount(totalPv), sub: copy.pvLabel }),
-            h(Kpi, { label: copy.totalUv, value: formatCount(totalUv), sub: copy.uvLabel }),
+            h(Kpi, { label: copy.avgUv, value: formatCount(avgUv), sub: copy.uvLabel }),
+            peakUvItem === undefined
+              ? null
+              : h(Kpi, { label: copy.peakUv, value: formatCount(peakUvItem.uv), sub: peakUvItem.date }),
             avgRetention === undefined
               ? null
               : h(Kpi, { label: copy.avgRetention, value: formatPercent(avgRetention), sub: copy.retentionLabel }),

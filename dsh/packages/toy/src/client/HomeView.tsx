@@ -419,7 +419,7 @@ export function HomeView({
               sub: h(
                 'span',
                 { className: 'toy-dash-sub' },
-                `${copy.homeLast7Uv} ${formatCount(dash?.last7Uv ?? 0)}`,
+                `${copy.homeUvAvg} ${formatCount(dash?.last7UvAvg ?? 0)} · ${copy.homeUvPeak} ${formatCount(dash?.last7UvPeak ?? 0)}`,
                 dash?.wow7UvPercent === undefined
                   ? null
                   : h(Badge, { tone: dash.wow7UvPercent >= 0 ? 'ok' : 'error' }, copy.homeWow7(dash.wow7UvPercent)),

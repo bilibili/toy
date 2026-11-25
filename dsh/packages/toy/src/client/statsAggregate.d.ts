@@ -24,6 +24,11 @@ export interface AccountSummary {
   readonly wowPercent: number | undefined
   readonly last7Pv: number
   readonly last7Uv: number
+  /** Average daily UV over the seven-day window (not deduplicated across days). */
+  readonly last7UvAvg: number
+  /** The highest combined daily UV and its date inside the window. */
+  readonly last7UvPeak: number
+  readonly last7UvPeakDate: string | undefined
   /** The seven days before the last seven (date-13 … date-7). */
   readonly prev7Pv: number
   readonly prev7Uv: number

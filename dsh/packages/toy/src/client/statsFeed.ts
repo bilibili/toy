@@ -15,7 +15,7 @@ import { mapLimit } from './overview.js'
 import { sliceToyStats } from './statsAggregate.js'
 import type { ToyStats, ToySummary } from '../shared/types.ts'
 
-const CONCURRENCY = 4
+const CONCURRENCY = 6
 /** Extra days fetched by the data overview so the home dashboard can reuse it. */
 export const FEED_MIN_DAYS = 14
 export const FEED_TTL_MS = 6 * 60 * 60 * 1000
@@ -221,6 +221,7 @@ export async function loadToyStats(
   windowDays: number,
   onProgress?: (progress: FeedProgress) => void,
   force = false,
+  onToy?: (toy: ToySummary, stats: ToyStats | undefined) => void,
 ): Promise<StatsByToy> {
   if (!force) {
     const running = jobs.get(windowDays)
@@ -236,7 +237,7 @@ export async function loadToyStats(
     return startJob(
       windowDays,
       (async () => {
-        const filled = await fill(ns, missing, windowDays, base.data.size, toys.length, onProgress)
+        const filled = await fill(ns, missing, windowDays, base.data.size, toys.length, onProgress, onToy)
         const merged = new Map(base.data)
         for (const [id, value] of filled) merged.set(id, value)
         if (generation.get(windowDays) === myGeneration) {
@@ -251,7 +252,7 @@ export async function loadToyStats(
   return startJob(
     windowDays,
     (async () => {
-      const data = await fill(ns, toys, windowDays, 0, toys.length, onProgress)
+      const data = await fill(ns, toys, windowDays, 0, toys.length, onProgress, onToy)
       if (generation.get(windowDays) === myGeneration) {
         cache.set(windowDays, { at: Date.now(), data })
         writePersistedFeed(windowDays, data)
@@ -272,6 +273,7 @@ async function fill(
   doneBefore: number,
   total: number,
   onProgress?: (progress: FeedProgress) => void,
+  onToy?: (toy: ToySummary, stats: ToyStats | undefined) => void,
 ): Promise<Map<number, ToyStats | undefined>> {
   const data = new Map<number, ToyStats | undefined>()
   let failed = 0
@@ -290,6 +292,7 @@ async function fill(
       }
       if (value === undefined) failed += 1
       data.set(toy.id, value)
+      onToy?.(toy, value)
     },
     (done) => onProgress?.({ done: doneBefore + done, total, failed }),
   )
