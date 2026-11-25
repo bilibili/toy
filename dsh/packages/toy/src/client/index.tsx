@@ -18,6 +18,7 @@ import remote from '@bilibili/dsh-toy/remote'
 import type { ToyNamespace } from './api.ts'
 import { bindLocale } from './i18n.ts'
 import { ToyBundleSummary } from './BundleSummary.tsx'
+import { ToyMark } from './ToyMark.tsx'
 import { ToyPanel } from './ToyPanel.tsx'
 
 /** Plugin name, matching the host half and the bundle row. */
@@ -53,24 +54,6 @@ interface ClientContext {
   readonly slots: SlotsService
   get(serviceKey: string): unknown
   effect(dispose: () => void | (() => void), label?: string): void
-}
-
-/** Sidebar icon: a small package/box glyph in the current text color. */
-function ToyPanelIcon({ size }: { readonly size: number }): ReactNode {
-  // The bilibili Toy mark: a dark "T" carrying the five brand-coloured tiles.
-  return h(
-    'svg',
-    { width: size, height: size, viewBox: '0 0 48 48', 'aria-hidden': true, style: { flex: '0 0 auto' } },
-    h('path', {
-      fill: '#18191C',
-      d: 'M4 1h40a3 3 0 0 1 3 3v15H33v26a3 3 0 0 1-3 3H18a3 3 0 0 1-3-3V19H1V4a3 3 0 0 1 3-3Z',
-    }),
-    h('rect', { x: 5, y: 5, width: 9, height: 9, rx: 2, fill: '#00AEEC' }),
-    h('rect', { x: 20, y: 5, width: 9, height: 9, rx: 2, fill: '#FF6699' }),
-    h('rect', { x: 34, y: 5, width: 9, height: 9, rx: 2, fill: '#FFDC40' }),
-    h('rect', { x: 20, y: 20, width: 9, height: 9, rx: 2, fill: '#2AC864' }),
-    h('rect', { x: 20, y: 34, width: 9, height: 9, rx: 2, fill: '#AC6DFF' }),
-  )
 }
 
 /**
@@ -112,7 +95,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
     ctx.slots.register({ name: 'main', key: PANEL_ID }, () => h(ToyPanel, { ns })),
   )
   ctx.slots.inject('sidebar.panellist', () =>
-    ctx.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 0, label: () => 'bilibili Toy' }, ToyPanelIcon),
+    ctx.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 0, label: () => 'bilibili Toy' }, ToyMark),
   )
   ctx.slots.inject('plugins.bundle.config', () =>
     ctx.slots.register(

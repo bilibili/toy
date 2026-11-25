@@ -27,7 +27,7 @@
       "default": "./lib/index.js"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./icon": "./icon.svg",
+    "./icon": "./icon.png",
     "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
@@ -43,7 +43,8 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
-    "README.md"
+    "README.md",
+    "icon.png"
   ],
   "keywords": [
     "dsh",
@@ -53,7 +54,7 @@
     "cli"
   ],
   "license": "MIT",
-  "icon": "./icon.svg",
+  "icon": "./icon.png",
   "engines": {
     "dsh": ">=0.2.1-rc.2 <0.3.0"
   },

@@ -28,6 +28,7 @@ import { StatsView } from './StatsView.tsx'
 import { setStatsAccount } from './statsFeed.ts'
 import { useToyStyles } from './styles.ts'
 import { ToysView } from './ToysView.tsx'
+import { ToyMark } from './ToyMark.tsx'
 import { Banner, Badge, Button, Dialog, FailureBanner, Icon, Toolbar } from './ui.tsx'
 import type {
   AccountView,
@@ -430,7 +431,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
         h(
           'button',
           { type: 'button', className: 'toy-brand', onClick: () => setTab('home'), title: copy.home },
-          h('span', { className: 'toy-brand-mark' }, h(Icon, { name: 'box', size: 17 })),
+          h('span', { className: 'toy-brand-mark' }, h(ToyMark, { size: 30 })),
           h(
             'div',
             { className: 'toy-brand-text' },

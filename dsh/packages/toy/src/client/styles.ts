@@ -232,7 +232,7 @@ const CSS = `
 .toy-header { position: relative; display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0 0 16px; background: transparent; border-bottom: 1px solid var(--dsw-alias-border-l1); }
 .toy-topbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .toy-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.toy-brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-foreground); flex: 0 0 auto; }
+.toy-brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: transparent; flex: 0 0 auto; }
 .toy-brand-text { display: flex; flex-direction: column; min-width: 0; }
 .toy-brand-text .toy-title { font-size: 17px; line-height: 1.2; }
 .toy-topbar-sub { margin: 1px 0 0; max-width: 520px; color: var(--dsw-alias-label-tertiary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
