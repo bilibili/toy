@@ -1,15 +1,15 @@
 /**
- * The "历史" tab: the local publish/update records with a path shortcut and a
- * typed-confirmation clear action (never `confirm()`).
+ * The "历史" tab: the local publish/update records with a search filter, a path
+ * shortcut and a typed-confirmation clear action (never `confirm()`).
  */
 
-import { createElement as h, useCallback, useEffect, useState } from 'react'
+import { createElement as h, useCallback, useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
 
 import { actionLabel, call, failureOf, formatHistoryTime } from './api.ts'
 import type { Failure, ToyNamespace } from './api.ts'
 import type { Copy } from './i18n.ts'
-import { Badge, Button, Dialog, Empty, FailureBanner, Field, Icon, Loading, SectionHead, Toolbar } from './ui.tsx'
+import { Badge, Button, CopyButton, Dialog, Empty, FailureBanner, Field, Icon, Loading, SectionHead, Toolbar } from './ui.tsx'
 import type { ActionResult, HistoryClearTicket, HistoryRecord } from '../shared/types.ts'
 
 /** The "历史" tab. */
@@ -20,6 +20,7 @@ export function HistoryView({
   active,
   onUsePath,
   onNotify,
+  onGoPublish,
 }: {
   readonly copy: Copy
   readonly zh: boolean
@@ -27,11 +28,13 @@ export function HistoryView({
   readonly active: boolean
   readonly onUsePath: (record: HistoryRecord) => void
   readonly onNotify: (message: string) => void
+  readonly onGoPublish?: () => void
 }): ReactNode {
   const [records, setRecords] = useState<readonly HistoryRecord[] | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<Failure | undefined>(undefined)
   const [tick, setTick] = useState(0)
+  const [query, setQuery] = useState('')
   const [clearOpen, setClearOpen] = useState(false)
   const [clearWord, setClearWord] = useState('')
   const [clearBusy, setClearBusy] = useState(false)
@@ -97,6 +100,44 @@ export function HistoryView({
   }, [clearWord, clearBusy, copy.clearHistoryWord, copy.clearHistoryDone, ns, closeClearDialog, onNotify])
 
   const items = records ?? []
+  const filtered = useMemo<readonly HistoryRecord[]>(() => {
+    const needle = query.trim().toLowerCase()
+    if (needle === '') return items
+    return items.filter((record) => {
+      const fields = [record.title ?? '', record.path ?? '', record.id === undefined ? '' : String(record.id), record.action ?? '']
+      return fields.some((field) => field.toLowerCase().includes(needle))
+    })
+  }, [items, query])
+
+  const search =
+    records === undefined || items.length === 0
+      ? null
+      : h(
+          'div',
+          { className: 'toy-history-toolbar' },
+          h(
+            'div',
+            { className: 'toy-search', style: { flex: '1 1 260px' } },
+            h('span', { className: 'toy-search-icon' }, h(Icon, { name: 'search', size: 14 })),
+            h('input', {
+              className: 'toy-input',
+              type: 'search',
+              value: query,
+              placeholder: copy.historySearchPlaceholder,
+              'aria-label': copy.historySearchPlaceholder,
+              spellCheck: false,
+              onChange: (event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value),
+            }),
+          ),
+          h(
+            'span',
+            { className: 'toy-caption toy-result-count' },
+            query.trim() === ''
+              ? copy.historyCount(items.length)
+              : copy.toysFilteredCount(filtered.length, items.length),
+          ),
+        )
+
   return h(
     'div',
     { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
@@ -116,10 +157,33 @@ export function HistoryView({
       ),
     }),
     h('div', { className: 'toy-caption' }, copy.historyHint),
+    search,
     error === undefined ? null : h(FailureBanner, { failure: error, copy }),
     busy && records === undefined ? h(Loading, { label: copy.historyLoading }) : null,
-    records !== undefined && items.length === 0 ? h(Empty, {}, copy.historyEmpty) : null,
-    items.length === 0
+    records !== undefined && items.length === 0
+      ? h(
+          Empty,
+          {},
+          h('span', {}, copy.historyEmpty),
+          h('span', { className: 'toy-caption' }, copy.historyEmptyHint),
+          onGoPublish === undefined
+            ? null
+            : h(Button, { size: 'sm', variant: 'primary', onClick: onGoPublish }, h(Icon, { name: 'plus' }), copy.goPublish),
+        )
+      : null,
+    records !== undefined && items.length > 0 && filtered.length === 0
+      ? h(
+          Empty,
+          {},
+          h('span', {}, copy.historyNoMatch),
+          h(
+            Button,
+            { size: 'sm', onClick: () => setQuery('') },
+            copy.clearFilters,
+          ),
+        )
+      : null,
+    filtered.length === 0
       ? null
       : h(
           'div',
@@ -144,7 +208,7 @@ export function HistoryView({
             h(
               'tbody',
               {},
-              items.map((record, index) =>
+              filtered.map((record, index) =>
                 h(
                   'tr',
                   { key: `${record.path ?? 'record'}-${record.time ?? ''}-${index}` },
@@ -155,7 +219,14 @@ export function HistoryView({
                   h(
                     'td',
                     { className: 'toy-col-path' },
-                    h('div', { className: 'toy-mono' }, record.path ?? '—'),
+                    h(
+                      'div',
+                      { className: 'toy-copy-cell' },
+                      h('div', { className: 'toy-mono' }, record.path ?? '—'),
+                      record.path === undefined || record.path === ''
+                        ? null
+                        : h(CopyButton, { value: record.path, label: copy.copyPath, copiedLabel: copy.copiedToClipboard }),
+                    ),
                     record.cliVersion === undefined ? null : h('div', { className: 'toy-caption' }, `CLI ${record.cliVersion}`),
                   ),
                   h(

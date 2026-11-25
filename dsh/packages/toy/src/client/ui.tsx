@@ -3,7 +3,7 @@
  * elements plus the stylesheet in `./styles.ts`; no framework components.
  */
 
-import { createElement as h, useEffect } from 'react'
+import { createElement as h, useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 
 import type { Failure } from './api.ts'
@@ -29,6 +29,15 @@ const GLYPHS = {
   copy: 'M9 9h11v11H9zM4 15V4h11',
   download: 'M12 4v11m-5-5 5 5 5-5M5 20h14',
   terminal: 'M4 5h16v14H4zM8 10l2 2-2 2M13 14h3',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm5.5-1.5L21 21',
+  settings: 'M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm8-3.5a8 8 0 0 0-.1-1.2l2-1.5-2-3.4-2.4 1a8 8 0 0 0-2-1.2L15 3h-6l-.4 2.7a8 8 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.5a8 8 0 0 0 0 2.4l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 2 1.2L9 21h6l.4-2.7a8 8 0 0 0 2-1.2l2.4 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z',
+  link: 'M10.5 13.5a4 4 0 0 0 5.7 0l2.3-2.3a4 4 0 1 0-5.7-5.7l-1 1M13.5 10.5a4 4 0 0 0-5.7 0l-2.3 2.3a4 4 0 1 0 5.7 5.7l1-1',
+  chevronDown: 'm6 9 6 6 6-6',
+  info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-13h.01M11 12h1v5h1',
+  home: 'M4 11.2 12 4l8 7.2M6 9.8V20h12V9.8M10 20v-5h4v5',
+  bell: 'M18 15V10a6 6 0 1 0-12 0v5l-2 3h16l-2-3ZM10 21h4',
+  chat: 'M21 11.5a8.5 8.5 0 0 1-8.5 8.5H7l-4 2V11.5a8.5 8.5 0 0 1 8.5-8.5h1A8.5 8.5 0 0 1 21 11.5Z',
+  headset: 'M4 14a8 8 0 0 1 16 0M4 14v4a2 2 0 0 0 2 2h1v-6H4m16 0v4a2 2 0 0 1-2 2h-1v-6h3',
 } as const
 
 /** Glyph names available to {@link Icon}. */
@@ -108,6 +117,47 @@ export function Empty({ children }: { readonly children?: ReactNode }): ReactNod
   return h('div', { className: 'toy-empty' }, children ?? null)
 }
 
+/** A shimmer placeholder for content that is still loading. */
+export function Skeleton({
+  rows = 3,
+  variant = 'lines',
+}: {
+  readonly rows?: number
+  readonly variant?: 'lines' | 'cards'
+}): ReactNode {
+  if (variant === 'cards') {
+    return h(
+      'div',
+      { className: 'toy-grid toy-grid-skeleton', 'aria-hidden': true },
+      Array.from({ length: rows }, (_unused, index) =>
+        h(
+          'div',
+          { key: String(index), className: 'toy-card toy-skeleton-card' },
+          h('span', { className: 'toy-skeleton toy-skeleton-poster' }),
+          h(
+            'span',
+            { className: 'toy-card-body' },
+            h('span', { className: 'toy-skeleton toy-skeleton-line', style: { width: '72%' } }),
+            h('span', { className: 'toy-skeleton toy-skeleton-line', style: { width: '52%' } }),
+            h('span', { className: 'toy-skeleton toy-skeleton-line', style: { width: '38%' } }),
+          ),
+        ),
+      ),
+    )
+  }
+  return h(
+    'div',
+    { className: 'toy-skeleton-lines', 'aria-hidden': true },
+    Array.from({ length: rows }, (_unused, index) =>
+      h('span', {
+        key: String(index),
+        className: 'toy-skeleton toy-skeleton-line',
+        style: { width: `${Math.max(35, 96 - index * 14)}%` },
+      }),
+    ),
+  )
+}
+
 /** A labelled form field. */
 export function Field({
   label,
@@ -160,6 +210,40 @@ export function SectionHead({
   )
 }
 
+/** A copy-to-clipboard button that confirms for a moment after copying. */
+export function CopyButton({
+  value,
+  label,
+  copiedLabel,
+  icon = 'copy',
+  size = 'sm',
+}: {
+  readonly value: string
+  readonly label: string
+  readonly copiedLabel: string
+  readonly icon?: 'copy' | 'link'
+  readonly size?: 'sm'
+}): ReactNode {
+  const [copied, setCopied] = useState(false)
+  const onCopy = (): void => {
+    void navigator.clipboard.writeText(value).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1400)
+      },
+      () => {
+        // Clipboard unavailable (non-secure context): the value stays selectable.
+      },
+    )
+  }
+  return h(
+    Button,
+    { size, onClick: onCopy, title: label },
+    h(Icon, { name: copied ? 'check' : icon }),
+    copied ? copiedLabel : label,
+  )
+}
+
 /** A label/value line. */
 export function KeyValue({ label, children }: { readonly label: string; readonly children: ReactNode }): ReactNode {
   return h(
@@ -181,6 +265,19 @@ export function Kpi({ label, value, sub }: { readonly label: string; readonly va
   )
 }
 
+/**
+ * Open dialogs, bottom-most first. Escape closes only the top one, so a
+ * confirmation opened from the maintenance dialog does not also close it.
+ */
+const dialogStack: symbol[] = []
+
+/** Focusable descendants of a dialog card. */
+function focusableIn(card: HTMLElement | null): readonly HTMLElement[] {
+  if (card === null) return []
+  const selectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  return Array.from(card.querySelectorAll<HTMLElement>(selectors)).filter((element) => !element.hasAttribute('disabled'))
+}
+
 /** In-page modal dialog: no `alert()`/`confirm()`, Escape and backdrop close. */
 export function Dialog({
   title,
@@ -195,13 +292,47 @@ export function Dialog({
   readonly footer?: ReactNode
   readonly onClose: () => void
 }): ReactNode {
+  const cardRef = useRef<HTMLDivElement | null>(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+
   useEffect(() => {
+    const id = Symbol('toy-dialog')
+    dialogStack.push(id)
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const first = focusableIn(cardRef.current)[0]
+    ;(first ?? cardRef.current)?.focus()
+
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') {
+        if (dialogStack[dialogStack.length - 1] !== id) return
+        event.stopImmediatePropagation()
+        closeRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const list = focusableIn(cardRef.current)
+      if (list.length === 0) return
+      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      const index = active === null ? -1 : list.indexOf(active)
+      if (event.shiftKey) {
+        if (index <= 0) {
+          event.preventDefault()
+          list[list.length - 1]?.focus()
+        }
+      } else if (index === -1 || index === list.length - 1) {
+        event.preventDefault()
+        list[0]?.focus()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      const position = dialogStack.indexOf(id)
+      if (position >= 0) dialogStack.splice(position, 1)
+      previous?.focus()
+    }
+  }, [])
 
   return h(
     'div',
@@ -209,19 +340,26 @@ export function Dialog({
       className: 'toy-dialog',
       role: 'presentation',
       onMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => {
-        if (event.target === event.currentTarget) onClose()
+        if (event.target === event.currentTarget) closeRef.current()
       },
     },
     h(
       'div',
-      { className: 'toy-dialog-card', role: 'dialog', 'aria-modal': true, 'aria-label': title },
+      {
+        className: 'toy-dialog-card',
+        role: 'dialog',
+        'aria-modal': true,
+        'aria-label': title,
+        tabIndex: -1,
+        ref: cardRef,
+      },
       h(
         'div',
         { className: 'toy-dialog-head' },
         h('strong', {}, title),
         h(
           'button',
-          { type: 'button', className: 'toy-icon-btn', onClick: onClose, 'aria-label': closeLabel, title: closeLabel },
+          { type: 'button', className: 'toy-icon-btn', onClick: () => closeRef.current(), 'aria-label': closeLabel, title: closeLabel },
           h(Icon, { name: 'close' }),
         ),
       ),

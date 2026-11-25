@@ -57,6 +57,7 @@ if (has('--help-json')) {
       { path: ['create'], args: { min: 1, max: 1, names: ['path'] }, flags: [{ name: 'title', type: 'string' }], writes: true },
       { path: ['update'], args: { min: 0, max: 2, names: ['id', 'path'] }, flags: [{ name: 'title', type: 'string' }, { name: 'yes', type: 'bool' }], writes: true },
       { path: ['mylist'], flags: [{ name: 'page', type: 'int' }] },
+      { path: ['notify'], flags: [{ name: 'category', type: 'int' }, { name: 'size', type: 'int' }] },
       { path: ['stats'], args: { min: 0, max: 1, names: ['id'] }, flags: [{ name: 'days', type: 'int' }] },
       { path: ['history'], args: { min: 0, max: 1, names: ['path'] }, subcommands: [{ path: ['history', 'clear'], flags: [{ name: 'yes', type: 'bool' }] }] },
       { path: ['whoami'] },
@@ -122,6 +123,36 @@ if (argv[0] === 'mylist') {
     process.exit(0)
   }
   process.stdout.write(`${JSON.stringify({ total: 1, pn: 1, ps: 20, list: [{ id: 42, title: 'demo', status: 'published', visibility: 'PUBLIC' }] })}\n`)
+  process.exit(0)
+}
+if (argv[0] === 'notify') {
+  process.stdout.write(`${JSON.stringify({
+    items: [
+      {
+        id: 1518500,
+        category: 2,
+        origin: 1,
+        template_code: 'version_audit_rejected',
+        title: 'demo 审核未通过',
+        body: '你的 Toy 版本审核未通过。',
+        action_text: '联系客服',
+        action_url: '/toy/publish/sdk#api-getchargeunlock',
+        ctime: 1794397786,
+      },
+      {
+        id: 1518501,
+        category: 3,
+        title: 'unsafe link',
+        action_text: 'open',
+        action_url: 'javascript:alert(1)',
+        ctime: 1794397787,
+      },
+    ],
+    new_count: 1,
+    has_more: false,
+    notification_url: 'https://www.bilibili.com/toy/publish/notifications',
+    marked: false,
+  })}\n`)
   process.exit(0)
 }
 if (argv[0] === 'stats') {

@@ -18,6 +18,7 @@ import { actionLabel, call, changeFieldLabel, changeValue, countdown, failureOf,
 import type { Failure, ToyNamespace } from './api.ts'
 import type { Copy } from './i18n.ts'
 import { Badge, Banner, Button, Dialog, Empty, FailureBanner, Field, Icon, Loading, SectionHead, Toolbar } from './ui.tsx'
+import { ToyPicker } from './ToyPicker.tsx'
 import type {
   ActionResult,
   PublishInput,
@@ -124,7 +125,7 @@ function PrecheckReport({ report, copy, zh }: { readonly report: ToyPrecheck; re
       'div',
       { className: 'toy-toolbar' },
       h(Badge, { tone: report.errors > 0 ? 'error' : 'ok' }, copy.precheckSummary(report.errors, report.warnings)),
-      h('span', { className: 'toy-caption' }, `${report.kind} · ${errors.length + warnings.length} ${zh ? '项' : 'finding(s)'}`),
+      h('span', { className: 'toy-caption' }, `${report.kind} · ${copy.findingCount(errors.length, warnings.length)}`),
     ),
     report.errors === 0 && report.warnings === 0
       ? h(Banner, { tone: 'success' }, copy.precheckPassed)
@@ -157,6 +158,8 @@ export function PublishView({
   zh,
   ns,
   toys,
+  catalogueError,
+  onRetryCatalogue,
   prefill,
   active,
   onSubmitted,
@@ -167,6 +170,8 @@ export function PublishView({
   readonly zh: boolean
   readonly ns: ToyNamespace
   readonly toys: ToyListPage | undefined
+  readonly catalogueError?: Failure
+  readonly onRetryCatalogue?: () => void
   readonly prefill: PublishPrefill | undefined
   readonly active: boolean
   readonly onSubmitted: () => void
@@ -257,6 +262,11 @@ export function PublishView({
     setCategory(toy.category ?? '')
     setTheme(toy.theme ?? '')
     setWatermark(toy.watermark === true ? 'on' : toy.watermark === false ? 'off' : '')
+    setPoster('')
+    setIcon('')
+    setActivity('')
+    setPassword('')
+    setClearActivity(false)
     setBaseline(baselineOfToy(toy))
   }, [])
 
@@ -271,7 +281,12 @@ export function PublishView({
     setPrecheck(undefined)
     setPrecheckError(undefined)
     setPrepError(undefined)
-    if (prefill.path !== undefined) setPath(prefill.path)
+    setPoster('')
+    setIcon('')
+    setActivity('')
+    setPassword('')
+    setClearActivity(false)
+    setPath(prefill.path ?? '')
     if (prefill.action === 'create') {
       setAction('create')
       setUpdateId('')
@@ -329,7 +344,15 @@ export function PublishView({
   }, [action, baseline, title, category, theme, visibility, watermark])
 
   const updateNoChanges =
-    action === 'update' && path.trim() === '' && prePlanChanges !== undefined && prePlanChanges.length === 0
+    action === 'update'
+    && path.trim() === ''
+    && prePlanChanges !== undefined
+    && prePlanChanges.length === 0
+    && poster.trim() === ''
+    && icon.trim() === ''
+    && activity.trim() === ''
+    && password === ''
+    && !clearActivity
 
   const buildInput = useCallback((): PublishInput => {
     const trimmed = (value: string): string => value.trim()
@@ -499,7 +522,8 @@ export function PublishView({
     confirmChecked &&
     !submitBusy &&
     !expiry.expired &&
-    !plannedEmpty
+    !plannedEmpty &&
+    !stale
   const previewUrl = prep?.previewUrl
   const target = prep?.target ?? (selectedTarget === undefined ? undefined : { id: selectedTarget.id, title: selectedTarget.title, slug: selectedTarget.slug, url: toyPageUrl(selectedTarget), status: selectedTarget.status })
 
@@ -525,39 +549,36 @@ export function PublishView({
     return prep.stage === 'planned' ? copy.summaryPlanned(summaryTarget()) : copy.summaryPreview(summaryTarget())
   })()
 
+  /** The section the panel scrolls to after a preview is prepared. */
+  const previewRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (prep === undefined) return
+    previewRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [prep])
+
   const targetField =
     h(
       Field,
       { label: copy.targetLabel, hint: copy.targetManual },
       h(
         'div',
-        { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
-        h(
-          'select',
-          {
-            className: 'toy-select',
-            style: { flex: '1 1 200px' },
-            value: selectedTarget === undefined ? '' : String(selectedTarget.id),
-            'aria-label': copy.targetLabel,
-            onChange: (event: ChangeEvent<HTMLSelectElement>) => {
-              const next = toyItems.find((toy) => String(toy.id) === event.target.value)
-              if (next === undefined) {
-                setUpdateId('')
-                setTitle('')
-                setSlug('')
-                setVisibility('')
-                setCategory('')
-                setTheme('')
-                setWatermark('')
-                setBaseline(undefined)
-              } else {
-                applyToy(next)
-              }
-            },
+        { style: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' } },
+        h(ToyPicker, {
+          copy,
+          toys: toyItems,
+          ...(selectedTarget === undefined ? {} : { value: selectedTarget.id }),
+          placeholder: copy.targetPlaceholder,
+          onChange: (toy) => {
+            // Re-selecting the same target must not wipe the package/metadata
+            // fields the creator already filled.
+            if (updateId === String(toy.id)) return
+            dropPreview(false)
+            setSubmitResult(undefined)
+            setSubmitError(undefined)
+            applyToy(toy)
+            setFormError(undefined)
           },
-          h('option', { value: '' }, copy.targetPlaceholder),
-          toyItems.map((toy) => h('option', { key: String(toy.id), value: String(toy.id) }, `${toy.title} (#${toy.id})`)),
-        ),
+        }),
         h('input', {
           className: 'toy-input',
           style: { flex: '0 0 130px' },
@@ -566,6 +587,9 @@ export function PublishView({
           placeholder: 'Toy ID',
           'aria-label': copy.targetManual,
           onChange: (event: ChangeEvent<HTMLInputElement>) => {
+            dropPreview(false)
+            setSubmitResult(undefined)
+            setSubmitError(undefined)
             setUpdateId(event.target.value.replace(/[^\d]/g, ''))
             setBaseline(undefined)
           },
@@ -573,306 +597,458 @@ export function PublishView({
       ),
     )
 
+  /** Short label for a history path so four suggestions stay distinguishable. */
+  const shortPath = (value: string): string => {
+    const parts = value.split(/[\\/]/).filter((part) => part !== '')
+    if (parts.length <= 2) return value
+    return `…/${parts.slice(-2).join('/')}`
+  }
+
+  const pathField = h(
+    Field,
+    { label: copy.pathLabel, hint: action === 'update' ? `${copy.pathHint} ${copy.prepareMetadataHint}` : copy.pathHint, span: true },
+    h('input', {
+      className: 'toy-input',
+      value: path,
+      list: 'toy-history-paths',
+      placeholder: copy.pathPlaceholder,
+      'aria-label': copy.pathLabel,
+      spellCheck: false,
+      onChange: (event: ChangeEvent<HTMLInputElement>) => {
+        setPath(event.target.value)
+        setPrecheck(undefined)
+        setPrecheckError(undefined)
+      },
+    }),
+    h(
+      'datalist',
+      { id: 'toy-history-paths' },
+      historyPaths.map((suggestion) => h('option', { key: suggestion, value: suggestion })),
+    ),
+    historyPaths.length === 0
+      ? null
+      : h(
+          'div',
+          { className: 'toy-toolbar', style: { marginTop: 4 } },
+          h('span', { className: 'toy-caption' }, copy.pathSuggestions),
+          historyPaths.slice(0, 4).map((suggestion) =>
+            h(
+              Button,
+              { key: suggestion, size: 'sm', onClick: () => setPath(suggestion), title: `${copy.useHistoryPath}: ${suggestion}` },
+              shortPath(suggestion),
+            ),
+          ),
+        ),
+  )
+
+  const stepHead = (step: number, title: string, hint: string): ReactNode =>
+    h(
+      'div',
+      { className: 'toy-panel-head' },
+      h(
+        'div',
+        {},
+        h('div', { className: 'toy-step-title' }, h('span', { className: 'toy-step-badge' }, String(step)), title),
+        h('div', { className: 'toy-caption', style: { marginTop: 2 } }, hint),
+      ),
+    )
+
+  const previewTimer = expiry.label === '' ? '—' : expiry.label
+  const barTitle = ((): string => {
+    if (prep !== undefined) {
+      if (stale) return copy.publishBarStale
+      if (expiry.expired) return copy.publishBarExpired
+      if (prep.stage === 'planned') return copy.publishBarPlanned
+      return copy.publishBarPreview(previewTimer)
+    }
+    if (action === 'create' && path.trim() === '') return copy.publishBarNeedsPath
+    if (action === 'update' && updateNoChanges) return copy.noDetectedChanges
+    return copy.publishBarIdle
+  })()
+  const barDetail = ((): string | undefined => {
+    if (prep === undefined) return action === 'update' && path.trim() === '' ? copy.prepareMetadataHint : copy.prepareHint
+    if (stale) return copy.publishStaleWarning
+    if (expiry.expired) return undefined
+    if (prep.stage === 'planned') return copy.plannedHint
+    if (!confirmChecked) return copy.publishBarNeedCheck
+    return copy.previewOpen
+  })()
+  const showPrepare = prep === undefined || expiry.expired || stale || submitError !== undefined
+  const prepareLabel = prep !== undefined && expiry.expired ? copy.reprepare : copy.prepare
+
   return h(
     'div',
     { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
     h(SectionHead, {
       title: copy.publishTitle,
       sub: copy.publishSubtitle,
-      actions: h(Button, { onClick: () => resetForm(true), disabled: prepBusy || submitBusy }, h(Icon, { name: 'refresh' }), copy.resetForm),
+      actions: h(
+        Toolbar,
+        {},
+        h(
+          'div',
+          { className: 'toy-tabs', role: 'tablist', 'aria-label': copy.actionLabel },
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'toy-tab',
+              role: 'tab',
+              'aria-selected': action === 'create',
+              onClick: () => {
+                dropPreview(false)
+                setSubmitResult(undefined)
+                setSubmitError(undefined)
+                setAction('create')
+                setBaseline(undefined)
+                setFormError(undefined)
+              },
+            },
+            copy.createAction,
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'toy-tab',
+              role: 'tab',
+              'aria-selected': action === 'update',
+              onClick: () => {
+                dropPreview(false)
+                setSubmitResult(undefined)
+                setSubmitError(undefined)
+                setAction('update')
+                setFormError(undefined)
+              },
+            },
+            copy.updateAction,
+          ),
+        ),
+      ),
     }),
     h(
       'div',
-      { className: 'toy-tabs', role: 'tablist', 'aria-label': copy.actionLabel },
+      { className: 'toy-panels' },
       h(
-        'button',
-        {
-          type: 'button',
-          className: 'toy-tab',
-          role: 'tab',
-          'aria-selected': action === 'create',
-          onClick: () => {
-            setAction('create')
-            setBaseline(undefined)
-            setFormError(undefined)
-          },
-        },
-        copy.createAction,
+        'div',
+        { className: 'toy-panel' },
+        stepHead(1, copy.publishStep1, copy.publishStep1Hint),
+        h(
+          'div',
+          { className: 'toy-form' },
+          action === 'update' ? targetField : null,
+          pathField,
+        ),
+        toys !== undefined && toyItems.length === 0 && action === 'update'
+          ? h(
+              Empty,
+              {},
+              h('span', {}, copy.publishNoToysHint),
+              h(
+                Button,
+                { size: 'sm', variant: 'primary', onClick: () => setAction('create') },
+                h(Icon, { name: 'plus' }),
+                copy.createAction,
+              ),
+            )
+          : null,
+        toys === undefined && catalogueError !== undefined && action === 'update'
+          ? h(
+              'div',
+              { style: { marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 } },
+              h(FailureBanner, { failure: catalogueError, copy }),
+              onRetryCatalogue === undefined
+                ? null
+                : h(
+                    'div',
+                    { className: 'toy-toolbar' },
+                    h(Button, { size: 'sm', onClick: onRetryCatalogue }, h(Icon, { name: 'refresh' }), copy.refresh),
+                  ),
+            )
+          : null,
       ),
       h(
-        'button',
-        {
-          type: 'button',
-          className: 'toy-tab',
-          role: 'tab',
-          'aria-selected': action === 'update',
-          onClick: () => {
-            setAction('update')
-            setFormError(undefined)
-          },
-        },
-        copy.updateAction,
+        'div',
+        { className: 'toy-panel' },
+        stepHead(2, copy.publishStep2, copy.publishStep2Hint),
+        h(
+          'div',
+          { className: 'toy-form' },
+          h(
+            Field,
+            { label: copy.titleLabel },
+            h('input', { className: 'toy-input', value: title, placeholder: copy.titlePlaceholder, 'aria-label': copy.titleLabel, onChange: (event: ChangeEvent<HTMLInputElement>) => setTitle(event.target.value) }),
+          ),
+          action === 'create'
+            ? h(
+                Field,
+                { label: copy.slugFormLabel, hint: copy.slugHint },
+                h('input', { className: 'toy-input', value: slug, placeholder: 'my-toy', 'aria-label': copy.slugFormLabel, spellCheck: false, onChange: (event: ChangeEvent<HTMLInputElement>) => setSlug(event.target.value) }),
+              )
+            : h(
+                Field,
+                { label: copy.slugFormLabel, hint: copy.slugImmutable },
+                h('input', { className: 'toy-input', value: slug, readOnly: true, 'aria-readonly': true, 'aria-label': copy.slugFormLabel }),
+              ),
+          h(
+            Field,
+            { label: copy.categoryFormLabel, hint: copy.categoryHint },
+            h(
+              'select',
+              { className: 'toy-select', value: category, 'aria-label': copy.categoryFormLabel, onChange: (event: ChangeEvent<HTMLSelectElement>) => setCategory(event.target.value) },
+              h('option', { value: '' }, copy.categoryKeep),
+              CATEGORIES.map((value) => h('option', { key: value, value }, value)),
+            ),
+          ),
+          h(
+            Field,
+            { label: copy.themeFormLabel, hint: copy.themeHint },
+            h(
+              'select',
+              { className: 'toy-select', value: theme, 'aria-label': copy.themeFormLabel, onChange: (event: ChangeEvent<HTMLSelectElement>) => setTheme(event.target.value) },
+              h('option', { value: '' }, copy.themeKeep),
+              THEMES.map((value) => h('option', { key: value, value }, value)),
+            ),
+          ),
+          h(
+            Field,
+            { label: copy.posterLabel, hint: copy.posterHint },
+            h('input', { className: 'toy-input', value: poster, placeholder: copy.posterPlaceholder, 'aria-label': copy.posterLabel, spellCheck: false, onChange: (event: ChangeEvent<HTMLInputElement>) => setPoster(event.target.value) }),
+          ),
+          h(
+            Field,
+            { label: copy.iconLabel, hint: copy.iconHint },
+            h('input', { className: 'toy-input', value: icon, placeholder: copy.iconPlaceholder, 'aria-label': copy.iconLabel, spellCheck: false, onChange: (event: ChangeEvent<HTMLInputElement>) => setIcon(event.target.value) }),
+          ),
+        ),
+        h('div', { className: 'toy-caption' }, copy.publishAssetsHint),
+      ),
+      h(
+        'div',
+        { className: 'toy-panel' },
+        stepHead(3, copy.publishStep3, copy.publishStep3Hint),
+        h(
+          'div',
+          { className: 'toy-form' },
+          h(
+            Field,
+            { label: copy.visibilityFormLabel },
+            h(
+              'select',
+              { className: 'toy-select', value: visibility, 'aria-label': copy.visibilityFormLabel, onChange: (event: ChangeEvent<HTMLSelectElement>) => setVisibility(event.target.value) },
+              h('option', { value: '' }, copy.visibilityKeep),
+              h('option', { value: 'public' }, copy.visibilityPublic),
+              h('option', { value: 'link-only' }, copy.visibilityLink),
+              h('option', { value: 'password' }, copy.visibilityPassword),
+            ),
+          ),
+          h(
+            Field,
+            { label: copy.watermarkFormLabel },
+            h(
+              'select',
+              {
+                className: 'toy-select',
+                value: watermark,
+                'aria-label': copy.watermarkFormLabel,
+                onChange: (event: ChangeEvent<HTMLSelectElement>) => setWatermark(event.target.value as WatermarkChoice),
+              },
+              h('option', { value: '' }, copy.watermarkKeep),
+              h('option', { value: 'on' }, copy.watermarkOnLabel),
+              h('option', { value: 'off' }, copy.watermarkOffLabel),
+            ),
+          ),
+          visibility === 'password' || password !== ''
+            ? h(
+                Field,
+                { label: copy.passwordLabel, hint: copy.passwordHint },
+                h('input', {
+                  className: 'toy-input',
+                  type: 'password',
+                  value: password,
+                  autoComplete: 'new-password',
+                  'aria-label': copy.passwordLabel,
+                  onChange: (event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value),
+                }),
+              )
+            : null,
+          h(
+            Field,
+            { label: copy.activityLabel, hint: copy.activityHint },
+            h('input', { className: 'toy-input', value: activity, 'aria-label': copy.activityLabel, onChange: (event: ChangeEvent<HTMLInputElement>) => setActivity(event.target.value) }),
+            action === 'update'
+              ? h(
+                  'label',
+                  { className: 'toy-check', style: { marginTop: 4 } },
+                  h('input', { type: 'checkbox', checked: clearActivity, onChange: (event: ChangeEvent<HTMLInputElement>) => setClearActivity(event.target.checked) }),
+                  h('span', {}, copy.clearActivity),
+                )
+              : null,
+          ),
+        ),
+      ),
+      h(
+        'div',
+        { className: 'toy-panel' },
+        stepHead(4, copy.publishStep4, copy.publishStep4Hint),
+        updateNoChanges
+          ? h(Banner, { tone: 'warn', title: copy.noDetectedChanges }, copy.noDetectedChangesHint)
+          : null,
+        formError === undefined ? null : h(Banner, { tone: 'error' }, formError),
+        precheckError === undefined ? null : h(FailureBanner, { failure: precheckError, copy }),
+        precheck !== undefined && !precheckBusy ? h(PrecheckReport, { report: precheck, copy, zh }) : null,
+        precheckBusy ? h(Loading, { label: copy.prechecking }) : null,
+        prepError === undefined ? null : h(FailureBanner, { failure: prepError, copy }),
+        submitError === undefined ? null : h(FailureBanner, { failure: submitError, copy }),
+        prepBusy ? h(Loading, { label: copy.preparing }) : null,
+        prep === undefined
+          ? h('div', { className: 'toy-caption' }, copy.publishStep4Hint)
+          : h(
+              'div',
+              { className: 'toy-preview', 'data-expired': expiry.expired ? 'true' : 'false', ref: previewRef },
+              h(
+                'div',
+                { className: 'toy-toolbar' },
+                h('span', { className: 'toy-section-title' }, prep.stage === 'planned' ? copy.plannedTitle : copy.previewTitle),
+                h(Badge, { tone: prep.stage === 'planned' ? 'warn' : 'ok' }, actionLabel(prep.action, zh)),
+                prep.stage === 'planned'
+                  ? h('span', { className: 'toy-caption' }, copy.plannedHint)
+                  : h('span', { className: 'toy-caption' }, copy.prepareHint),
+              ),
+              localizedSummary === undefined
+                ? null
+                : h(
+                    'div',
+                    { className: 'toy-kv' },
+                    h('span', { className: 'toy-kv-label' }, copy.previewSummary),
+                    h('span', { className: 'toy-kv-value toy-strong' }, localizedSummary),
+                  ),
+              prep.summary === undefined || prep.summary === ''
+                ? null
+                : h('div', { className: 'toy-caption', title: prep.summary }, `${copy.rawSummaryLabel}: ${prep.summary}`),
+              target === undefined
+                ? null
+                : h(
+                    'div',
+                    { className: 'toy-kv' },
+                    h('span', { className: 'toy-kv-label' }, copy.targetCurrent),
+                    h(
+                      'span',
+                      { className: 'toy-kv-value' },
+                      `${target.title ?? '—'}${target.id === undefined ? '' : ` (#${target.id})`}${target.status === undefined ? '' : ` · ${target.status}`}`,
+                    ),
+                  ),
+              prep.stage === 'planned' && displayChanges.length === 0
+                ? h(Banner, { tone: 'warn', title: copy.noDetectedChanges }, copy.noDetectedChangesHint)
+                : displayChanges.length === 0
+                  ? null
+                  : h(
+                      'div',
+                      {},
+                      h('div', { className: 'toy-kv-label' }, copy.changesTitle),
+                      h(ChangeList, { changes: displayChanges, copy, zh }),
+                    ),
+              previewUrl === undefined
+                ? null
+                : h(
+                    'div',
+                    { style: { display: 'flex', flexDirection: 'column', gap: 4 } },
+                    h(
+                      'a',
+                      { className: 'toy-link', href: previewUrl, target: '_blank', rel: 'noreferrer' },
+                      h(Icon, { name: 'external' }),
+                      ' ',
+                      copy.previewOpen,
+                    ),
+                    h('span', { className: 'toy-finding-file' }, previewUrl),
+                  ),
+              expiry.expired
+                ? h(Banner, { tone: 'warn' }, copy.previewExpired)
+                : expiry.label === ''
+                  ? null
+                  : h(
+                      'div',
+                      { className: 'toy-caption', style: { display: 'flex', alignItems: 'center', gap: 6 } },
+                      h(Icon, { name: 'clock' }),
+                      copy.previewExpiresIn(expiry.label),
+                    ),
+              stale
+                ? h(Banner, { tone: 'warn' }, copy.publishStaleWarning)
+                : null,
+              h('div', { className: 'toy-divider' }),
+              h(
+                'label',
+                { className: 'toy-check' },
+                h('input', {
+                  type: 'checkbox',
+                  checked: confirmChecked,
+                  disabled: expiry.expired,
+                  onChange: (event: ChangeEvent<HTMLInputElement>) => setConfirmChecked(event.target.checked),
+                }),
+                h('span', {}, prep.stage === 'planned' ? copy.confirmCheckPlanned : copy.confirmCheck),
+              ),
+            ),
+        submitResult === undefined || submitResult.ok !== true
+          ? null
+          : h(
+              Banner,
+              {
+                tone: 'success',
+                title: copy.submitSuccess,
+                actions: h(
+                  Toolbar,
+                  {},
+                  h(Button, { size: 'sm', onClick: () => resetForm(false) }, copy.createToy),
+                  h(Button, { size: 'sm', onClick: onGoToToys }, copy.toysTitle),
+                ),
+              },
+              h(
+                'div',
+                { className: 'toy-toolbar' },
+                submitResult.id === undefined ? null : h(Badge, {}, copy.submitResultId(submitResult.id)),
+                submitResult.status === undefined ? null : h(Badge, { tone: 'info' }, copy.submitResultStatus(submitResult.status)),
+                h('span', { className: 'toy-caption' }, copy.submittedRefreshHint),
+              ),
+            ),
       ),
     ),
     h(
       'div',
-      { className: 'toy-panel' },
+      { className: 'toy-actionbar' },
       h(
         'div',
-        { className: 'toy-form' },
-        action === 'update' ? targetField : null,
-        h(
-          Field,
-          { label: copy.pathLabel, hint: action === 'update' ? `${copy.pathHint} ${copy.prepareMetadataHint}` : copy.pathHint, span: true },
-          h('input', {
-            className: 'toy-input',
-            value: path,
-            list: 'toy-history-paths',
-            placeholder: copy.pathPlaceholder,
-            'aria-label': copy.pathLabel,
-            spellCheck: false,
-            onChange: (event: ChangeEvent<HTMLInputElement>) => setPath(event.target.value),
-          }),
-          h(
-            'datalist',
-            { id: 'toy-history-paths' },
-            historyPaths.map((suggestion) => h('option', { key: suggestion, value: suggestion })),
-          ),
-          historyPaths.length === 0
-            ? null
-            : h(
-                'div',
-                { className: 'toy-toolbar', style: { marginTop: 4 } },
-                h('span', { className: 'toy-caption' }, copy.pathSuggestions),
-                historyPaths.slice(0, 4).map((suggestion) =>
-                  h(
-                    Button,
-                    { key: suggestion, size: 'sm', onClick: () => setPath(suggestion), title: suggestion },
-                    copy.useHistoryPath,
-                  ),
-                ),
-              ),
-        ),
-        h(
-          Field,
-          { label: copy.posterLabel, hint: copy.posterHint },
-          h('input', { className: 'toy-input', value: poster, placeholder: copy.posterPlaceholder, 'aria-label': copy.posterLabel, spellCheck: false, onChange: (event: ChangeEvent<HTMLInputElement>) => setPoster(event.target.value) }),
-        ),
-        h(
-          Field,
-          { label: copy.iconLabel, hint: copy.iconHint },
-          h('input', { className: 'toy-input', value: icon, placeholder: copy.iconPlaceholder, 'aria-label': copy.iconLabel, spellCheck: false, onChange: (event: ChangeEvent<HTMLInputElement>) => setIcon(event.target.value) }),
-        ),
-        h(
-          Field,
-          { label: copy.titleLabel },
-          h('input', { className: 'toy-input', value: title, placeholder: copy.titlePlaceholder, 'aria-label': copy.titleLabel, onChange: (event: ChangeEvent<HTMLInputElement>) => setTitle(event.target.value) }),
-        ),
-        action === 'create'
-          ? h(
-              Field,
-              { label: copy.slugFormLabel, hint: copy.slugHint },
-              h('input', { className: 'toy-input', value: slug, placeholder: 'my-toy', 'aria-label': copy.slugFormLabel, spellCheck: false, onChange: (event: ChangeEvent<HTMLInputElement>) => setSlug(event.target.value) }),
-            )
-          : h(
-              Field,
-              { label: copy.slugFormLabel, hint: copy.slugImmutable },
-              h('input', { className: 'toy-input', value: slug, readOnly: true, 'aria-readonly': true, 'aria-label': copy.slugFormLabel }),
-            ),
-        h(
-          Field,
-          { label: copy.categoryFormLabel, hint: copy.categoryHint },
-          h(
-            'select',
-            { className: 'toy-select', value: category, 'aria-label': copy.categoryFormLabel, onChange: (event: ChangeEvent<HTMLSelectElement>) => setCategory(event.target.value) },
-            h('option', { value: '' }, copy.categoryKeep),
-            CATEGORIES.map((value) => h('option', { key: value, value }, value)),
-          ),
-        ),
-        h(
-          Field,
-          { label: copy.themeFormLabel, hint: copy.themeHint },
-          h(
-            'select',
-            { className: 'toy-select', value: theme, 'aria-label': copy.themeFormLabel, onChange: (event: ChangeEvent<HTMLSelectElement>) => setTheme(event.target.value) },
-            h('option', { value: '' }, copy.themeKeep),
-            THEMES.map((value) => h('option', { key: value, value }, value)),
-          ),
-        ),
-        h(
-          Field,
-          { label: copy.visibilityFormLabel },
-          h(
-            'select',
-            { className: 'toy-select', value: visibility, 'aria-label': copy.visibilityFormLabel, onChange: (event: ChangeEvent<HTMLSelectElement>) => setVisibility(event.target.value) },
-            h('option', { value: '' }, copy.visibilityKeep),
-            h('option', { value: 'public' }, copy.visibilityPublic),
-            h('option', { value: 'link-only' }, copy.visibilityLink),
-            h('option', { value: 'password' }, copy.visibilityPassword),
-          ),
-        ),
-        h(
-          Field,
-          { label: copy.watermarkFormLabel },
-          h(
-            'select',
-            {
-              className: 'toy-select',
-              value: watermark,
-              'aria-label': copy.watermarkFormLabel,
-              onChange: (event: ChangeEvent<HTMLSelectElement>) => setWatermark(event.target.value as WatermarkChoice),
-            },
-            h('option', { value: '' }, copy.watermarkKeep),
-            h('option', { value: 'on' }, copy.watermarkOnLabel),
-            h('option', { value: 'off' }, copy.watermarkOffLabel),
-          ),
-        ),
-        visibility === 'password' || password !== ''
-          ? h(
-              Field,
-              { label: copy.passwordLabel, hint: copy.passwordHint },
-              h('input', {
-                className: 'toy-input',
-                type: 'password',
-                value: password,
-                autoComplete: 'new-password',
-                'aria-label': copy.passwordLabel,
-                onChange: (event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value),
-              }),
-            )
-          : null,
-        h(
-          Field,
-          { label: copy.activityLabel, hint: copy.activityHint },
-          h('input', { className: 'toy-input', value: activity, 'aria-label': copy.activityLabel, onChange: (event: ChangeEvent<HTMLInputElement>) => setActivity(event.target.value) }),
-          action === 'update'
-            ? h(
-                'label',
-                { className: 'toy-check', style: { marginTop: 4 } },
-                h('input', { type: 'checkbox', checked: clearActivity, onChange: (event: ChangeEvent<HTMLInputElement>) => setClearActivity(event.target.checked) }),
-                h('span', {}, copy.clearActivity),
-              )
-            : null,
-        ),
+        { className: 'toy-actionbar-status' },
+        h('span', { className: 'toy-actionbar-title' }, barTitle),
+        barDetail === undefined ? null : h('span', { className: 'toy-caption' }, barDetail),
       ),
       h(
         'div',
-        { className: 'toy-toolbar', style: { marginTop: 12 } },
+        { className: 'toy-actionbar-actions' },
+        h(Button, { size: 'sm', onClick: () => resetForm(true), disabled: prepBusy || submitBusy }, copy.resetForm),
         h(
           Button,
-          { onClick: () => void runPrecheck(), disabled: precheckBusy || prepBusy || path.trim() === '', title: copy.precheck },
+          { size: 'sm', onClick: () => void runPrecheck(), disabled: precheckBusy || prepBusy || path.trim() === '', title: path.trim() === '' ? copy.precheckNeedsPath : copy.precheck },
           h(Icon, { name: 'check' }),
           precheckBusy ? copy.prechecking : copy.precheck,
         ),
-        h(
-          Button,
-          { variant: 'primary', onClick: () => void prepare(), disabled: !canPrepare || !active },
-          h(Icon, { name: 'external' }),
-          prepBusy ? copy.preparing : copy.prepare,
-        ),
-        h('span', { className: 'toy-caption' }, path.trim() === '' && action === 'update' ? copy.prepareMetadataHint : copy.prepareHint),
-      ),
-      updateNoChanges
-        ? h(Banner, { tone: 'warn', title: copy.noDetectedChanges }, copy.noDetectedChangesHint)
-        : null,
-      formError === undefined ? null : h(Banner, { tone: 'error' }, formError),
-    ),
-    precheckError === undefined ? null : h(FailureBanner, { failure: precheckError, copy }),
-    precheck !== undefined && !precheckBusy ? h(PrecheckReport, { report: precheck, copy, zh }) : null,
-    precheckBusy ? h(Loading, { label: copy.prechecking }) : null,
-    prepError === undefined ? null : h(FailureBanner, { failure: prepError, copy }),
-    submitError === undefined ? null : h(FailureBanner, { failure: submitError, copy }),
-    prepBusy ? h(Loading, { label: copy.preparing }) : null,
-    prep === undefined
-      ? null
-      : h(
-          'div',
-          { className: 'toy-preview', 'data-expired': expiry.expired ? 'true' : 'false' },
-          h(
-            'div',
-            { className: 'toy-toolbar' },
-            h('span', { className: 'toy-section-title' }, prep.stage === 'planned' ? copy.plannedTitle : copy.previewTitle),
-            h(Badge, { tone: prep.stage === 'planned' ? 'warn' : 'ok' }, actionLabel(prep.action, zh)),
-            prep.stage === 'planned'
-              ? h('span', { className: 'toy-caption' }, copy.plannedHint)
-              : h('span', { className: 'toy-caption' }, copy.prepareHint),
-          ),
-          localizedSummary === undefined
-            ? null
-            : h(
-                'div',
-                { className: 'toy-kv' },
-                h('span', { className: 'toy-kv-label' }, copy.previewSummary),
-                h('span', { className: 'toy-kv-value toy-strong' }, localizedSummary),
-              ),
-          prep.summary === undefined || prep.summary === ''
-            ? null
-            : h('div', { className: 'toy-caption', title: prep.summary }, `${copy.rawSummaryLabel}: ${prep.summary}`),
-          target === undefined
-            ? null
-            : h(
-                'div',
-                { className: 'toy-kv' },
-                h('span', { className: 'toy-kv-label' }, copy.targetCurrent),
-                h(
-                  'span',
-                  { className: 'toy-kv-value' },
-                  `${target.title ?? '—'}${target.id === undefined ? '' : ` (#${target.id})`}${target.status === undefined ? '' : ` · ${target.status}`}`,
-                ),
-              ),
-          prep.stage === 'planned' && displayChanges.length === 0
-            ? h(Banner, { tone: 'warn', title: copy.noDetectedChanges }, copy.noDetectedChangesHint)
-            : displayChanges.length === 0
-              ? null
-              : h(
-                  'div',
-                  {},
-                  h('div', { className: 'toy-kv-label' }, copy.changesTitle),
-                  h(ChangeList, { changes: displayChanges, copy, zh }),
-                ),
-          previewUrl === undefined
-            ? null
-            : h(
-                'div',
-                { style: { display: 'flex', flexDirection: 'column', gap: 4 } },
-                h(
-                  'a',
-                  { className: 'toy-link', href: previewUrl, target: '_blank', rel: 'noreferrer' },
-                  h(Icon, { name: 'external' }),
-                  ' ',
-                  copy.previewOpen,
-                ),
-                h('span', { className: 'toy-finding-file' }, previewUrl),
-              ),
-          expiry.expired
-            ? h(Banner, { tone: 'warn' }, copy.previewExpired)
-            : expiry.label === ''
-              ? null
-              : h(
-                  'div',
-                  { className: 'toy-caption', style: { display: 'flex', alignItems: 'center', gap: 6 } },
-                  h(Icon, { name: 'clock' }),
-                  copy.previewExpiresIn(expiry.label),
-                ),
-          stale
-            ? h(Banner, { tone: 'warn' }, zh ? '表单在生成预览后有修改；提交仍会使用已生成的预览内容。如需应用新修改，请重新生成预览。' : 'The form changed after the preview was created. Submitting still uses the prepared preview; generate it again to apply the new values.')
-            : null,
-          h('div', { className: 'toy-divider' }),
-          h(
-            'label',
-            { className: 'toy-check' },
-            h('input', {
-              type: 'checkbox',
-              checked: confirmChecked,
-              disabled: expiry.expired,
-              onChange: (event: ChangeEvent<HTMLInputElement>) => setConfirmChecked(event.target.checked),
-            }),
-            h('span', {}, prep.stage === 'planned' ? copy.confirmCheckPlanned : copy.confirmCheck),
-          ),
-          h(
-            Toolbar,
-            {},
-            h(
+        showPrepare
+          ? h(
+              Button,
+              {
+                variant: prep === undefined ? 'primary' : undefined,
+                onClick: () => void prepare(),
+                disabled: !canPrepare || !active,
+              },
+              h(Icon, { name: 'external' }),
+              prepBusy ? copy.preparing : prepareLabel,
+            )
+          : null,
+        prep === undefined
+          ? null
+          : h(Button, { size: 'sm', onClick: () => dropPreview(true), disabled: submitBusy }, copy.cancelPreview),
+        prep === undefined
+          ? null
+          : h(
               Button,
               {
                 variant: 'primary',
@@ -883,34 +1059,8 @@ export function PublishView({
               h(Icon, { name: 'check' }),
               submitBusy ? copy.submitting : prep.stage === 'planned' ? copy.submitPlanned : copy.submit,
             ),
-            h(Button, { onClick: () => dropPreview(true), disabled: submitBusy }, copy.cancelPreview),
-            expiry.expired
-              ? h(Button, { onClick: () => void prepare(), disabled: !canPrepare }, copy.reprepare)
-              : null,
-          ),
-        ),
-    submitResult === undefined || submitResult.ok !== true
-      ? null
-      : h(
-          Banner,
-          {
-            tone: 'success',
-            title: copy.submitSuccess,
-            actions: h(
-              Toolbar,
-              {},
-              h(Button, { size: 'sm', onClick: () => resetForm(false) }, copy.createToy),
-              h(Button, { size: 'sm', onClick: onGoToToys }, copy.toysTitle),
-            ),
-          },
-          h(
-            'div',
-            { className: 'toy-toolbar' },
-            submitResult.id === undefined ? null : h(Badge, {}, copy.submitResultId(submitResult.id)),
-            submitResult.status === undefined ? null : h(Badge, { tone: 'info' }, copy.submitResultStatus(submitResult.status)),
-            h('span', { className: 'toy-caption' }, copy.submittedRefreshHint),
-          ),
-        ),
+      ),
+    ),
     dialog === undefined
       ? null
       : h(Dialog, {
@@ -936,9 +1086,5 @@ export function PublishView({
             ),
           ),
         }),
-    toys !== undefined && toyItems.length === 0 && action === 'update'
-      ? h(Empty, {}, copy.toysEmpty)
-      : null,
-    h('div', { className: 'toy-caption' }, copy.readOnlyNote),
   )
 }

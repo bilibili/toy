@@ -267,3 +267,26 @@ export interface SkillActionResult {
   readonly status?: SkillStatus
   readonly error?: ToyError
 }
+
+/** One creator notification as `toy notify --json` reports it. */
+export interface ToyNotification {
+  readonly id: number
+  /** 1 achievements, 2 works and permissions, 3 events and announcements. */
+  readonly category: number
+  readonly origin?: number
+  readonly templateCode?: string
+  readonly title: string
+  readonly body?: string
+  readonly actionText?: string
+  readonly actionUrl?: string
+  /** Unix seconds. */
+  readonly time?: number
+}
+
+/** One page of creator notifications. */
+export interface NotifyFeed {
+  readonly items: readonly ToyNotification[]
+  readonly newCount?: number
+  readonly hasMore?: boolean
+  readonly notificationUrl?: string
+}

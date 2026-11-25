@@ -562,3 +562,31 @@ test('a missing CLI is reported as binary-missing with an install hint everywher
   assert.equal(login.ok, false)
   assert.equal(login.error.kind, 'binary-missing')
 })
+
+test('notifications normalize the creator feed and forward the category', async () => {
+  const { log, config } = await logConfig()
+  const svc = service({ config })
+  const feed = await svc.notifications(0)
+  assert.equal(feed.newCount, 1)
+  assert.equal(feed.hasMore, false)
+  assert.equal(feed.notificationUrl, 'https://www.bilibili.com/toy/publish/notifications')
+  assert.deepEqual(feed.items[0], {
+    id: 1518500,
+    category: 2,
+    origin: 1,
+    templateCode: 'version_audit_rejected',
+    title: 'demo 审核未通过',
+    body: '你的 Toy 版本审核未通过。',
+    actionText: '联系客服',
+    actionUrl: 'https://www.bilibili.com/toy/publish/sdk#api-getchargeunlock',
+    time: 1794397786,
+  })
+  assert.equal(feed.items[1].title, 'unsafe link')
+  assert.equal(feed.items[1].actionUrl, undefined)
+
+  const requests = await readArgv(log)
+  assert.deepEqual(requests.at(-1), ['notify', '--size', '50', '--json'])
+  await svc.notifications(2)
+  assert.deepEqual((await readArgv(log)).at(-1), ['notify', '--size', '50', '--category', '2', '--json'])
+  await assert.rejects(svc.notifications(9), /category must be between 0 and 3/)
+})
