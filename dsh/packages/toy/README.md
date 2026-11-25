@@ -62,7 +62,7 @@ A released tarball ships the built `lib/`:
 # latest release
 dsh plugin --profile web add https://github.com/bilibili/toy/releases/latest/download/bilibili-dsh-toy.tgz
 # pinned version
-dsh plugin --profile web add https://github.com/bilibili/toy/releases/download/dsh-plugin-v0.2.0/bilibili-dsh-toy-0.2.0.tgz
+dsh plugin --profile web add https://github.com/bilibili/toy/releases/download/dsh-plugin-v0.2.1/bilibili-dsh-toy-0.2.1.tgz
 ```
 
 From a source checkout, build the workspace once, then link the package:
