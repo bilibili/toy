@@ -24,8 +24,32 @@ const SCHEMA_TTL_MS = 10 * 60 * 1000
 const ANSI_RE = /\u001b\[[0-9;]*m/g
 
 /**
+ * Wording the platform uses when it refuses a publish because the account has
+ * no Toy permission yet. Only applied to a business envelope, where the words
+ * can only come from the server.
+ */
+const PERMISSION_RE = /权限|资格|白名单|forbidden|no permission|not authorized|not permitted/i
+
+/**
+ * The CLI's own pre-flight refusal. Deliberately Chinese-only: an English
+ * `permission denied` in a plain message is almost always a local EACCES on a
+ * file, and sending that author to the application page would be wrong.
+ */
+const PERMISSION_CLI_RE = /权限|资格|白名单/
+
+/**
+ * Where an author without permission applies. The client documents the same
+ * URL as `TOY_LINKS.apply`; the host cannot import client code, so the literal
+ * is repeated here and the hint below is what reaches the model tools.
+ */
+const PERMISSION_APPLY_URL = 'https://www.bilibili.com/toy/intro'
+
+/** Actionable next step for a permission rejection, shared by every surface. */
+const PERMISSION_HINT = `该账号可能还没有 Toy 权限；在 ${PERMISSION_APPLY_URL} 查看或申请，开通后再重试`
+
+/**
  * @typedef {object} CliError
- * @property {'binary-missing' | 'timeout' | 'aborted' | 'output-limit' | 'login-expired' | 'business' | 'usage' | 'needs-yes' | 'invalid-output' | 'spawn' | 'cli'} kind
+ * @property {'binary-missing' | 'timeout' | 'aborted' | 'output-limit' | 'login-expired' | 'permission-required' | 'business' | 'usage' | 'needs-yes' | 'invalid-output' | 'spawn' | 'cli'} kind
  * @property {string} message
  * @property {number} [code]
  * @property {string} [hint]
@@ -128,7 +152,15 @@ export function classifyFailure(input) {
   }
   const business = message.match(/status=(\d+)\s+code=(\d+)\s+message=(.*)/s)
   if (business !== null) {
-    return { kind: 'business', code: Number(business[2]), message: business[3].trim() }
+    const code = Number(business[2])
+    const detail = business[3].trim()
+    // A permission rejection arrives as a business failure, but retrying it
+    // never helps: it is fixed by applying for access. Classify it here so the
+    // page and the model tools read the same answer.
+    if (PERMISSION_RE.test(detail)) {
+      return { kind: 'permission-required', code, message: detail, hint: PERMISSION_HINT }
+    }
+    return { kind: 'business', code, message: detail }
   }
   if (/unknown flag|accepts \d+ arg|required flag|unknown command|invalid argument/.test(message)) {
     return {
@@ -143,6 +175,11 @@ export function classifyFailure(input) {
       message,
       hint: 'this plugin submits only through toy_submit, after an explicit confirmation',
     }
+  }
+  // A CLI that refuses before reaching the platform still exits with the same
+  // wording; classify it here rather than making every caller parse prose.
+  if (PERMISSION_CLI_RE.test(message)) {
+    return { kind: 'permission-required', message, hint: PERMISSION_HINT }
   }
   return { kind: 'cli', message }
 }

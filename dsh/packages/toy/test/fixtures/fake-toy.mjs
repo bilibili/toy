@@ -34,6 +34,12 @@ if (process.env.FAKE_TOY_ERROR === 'business') {
   process.stderr.write('status=500 code=307000 message=index.html 解压后超过 1MB 上限，请拆分包内资源\n')
   process.exit(1)
 }
+// The envelope shape the classifier must recognize; the code is fixture data,
+// the real one is owned by the platform.
+if (process.env.FAKE_TOY_ERROR === 'permission') {
+  process.stderr.write('status=403 code=307403 message=当前账号还没有 Toy 发布权限，请先申请\n')
+  process.exit(1)
+}
 if (process.env.FAKE_TOY_ERROR === 'usage') {
   process.stderr.write('Error: unknown flag: --nope\n')
   process.exit(1)

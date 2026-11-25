@@ -6,6 +6,8 @@
 export const TOY_LINKS = {
   /** Creator publish platform (upload, SDK/CLI entry, guide, notifications). */
   publish: 'https://www.bilibili.com/toy/publish/',
+  /** Toy permission introduction/application page. */
+  apply: 'https://www.bilibili.com/toy/intro',
   publishRecords: 'https://www.bilibili.com/toy/publish/?tab=records',
   sdk: 'https://www.bilibili.com/toy/publish/sdk',
   cli: 'https://www.bilibili.com/toy/publish/sdk/cli',

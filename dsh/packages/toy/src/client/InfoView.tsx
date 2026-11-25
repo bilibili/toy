@@ -15,6 +15,7 @@ import { Icon, SectionHead } from './ui.tsx'
 
 export function InfoView({ copy }: { readonly copy: Copy }): ReactNode {
   const entries: readonly { readonly title: string; readonly desc: string; readonly url: string }[] = [
+    { title: copy.infoPermission, desc: copy.infoPermissionDesc, url: TOY_LINKS.apply },
     { title: copy.infoFaq, desc: copy.infoFaqDesc, url: TOY_LINKS.faq },
     { title: copy.infoSdk, desc: copy.infoSdkDesc, url: TOY_LINKS.sdk },
     { title: copy.infoCli, desc: copy.infoCliDesc, url: TOY_LINKS.cli },
