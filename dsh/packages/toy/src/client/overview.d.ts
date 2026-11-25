@@ -18,7 +18,6 @@ export interface OverviewRow {
   readonly pv: number
   readonly uv: number
   readonly totalPv: number
-  readonly totalUv: number
   readonly spark: readonly ToyStatsDay[]
 }
 

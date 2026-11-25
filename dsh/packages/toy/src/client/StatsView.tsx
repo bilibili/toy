@@ -21,7 +21,7 @@ import type { Copy } from './i18n.ts'
 import { overviewRow, sortOverviewRows, sparkHeights } from './overview.js'
 import type { OverviewRow } from './overview.js'
 import { sliceToyStats } from './statsAggregate.js'
-import { FEED_MIN_DAYS, loadToyStats, readToyStatsCache, setStatsAccount, writeToyStatsCache } from './statsFeed.ts'
+import { FEED_MIN_DAYS, loadToyStats, peekFeed, readToyStatsCache, setStatsAccount, writeToyStatsCache } from './statsFeed.ts'
 import { ToyPicker } from './ToyPicker.tsx'
 import { Badge, Button, Empty, FailureBanner, Icon, Kpi, SectionHead, Toolbar } from './ui.tsx'
 import type { ToyListPage, ToyStats, ToySummary } from '../shared/types.ts'
@@ -344,7 +344,15 @@ export function StatsView({
     const force = forceOverview.current
     forceOverview.current = false
     const windowDays = Math.max(days, FEED_MIN_DAYS)
-    setOverview(undefined)
+    const cached = force ? undefined : peekFeed(windowDays)
+    if (cached === undefined) {
+      setOverview(undefined)
+    } else {
+      const rows = items
+        .filter((toy) => cached.has(toy.id))
+        .map((toy) => overviewRow(toy, sliceToyStats(cached.get(toy.id), days)))
+      setOverview(sortOverviewRows(rows, locale))
+    }
     setOverviewBusy(true)
     setOverviewError(undefined)
     setOverviewDone(0)

@@ -569,6 +569,9 @@ export function PublishView({
           ...(selectedTarget === undefined ? {} : { value: selectedTarget.id }),
           placeholder: copy.targetPlaceholder,
           onChange: (toy) => {
+            // Re-selecting the same target must not wipe the package/metadata
+            // fields the creator already filled.
+            if (updateId === String(toy.id)) return
             dropPreview(false)
             setSubmitResult(undefined)
             setSubmitError(undefined)

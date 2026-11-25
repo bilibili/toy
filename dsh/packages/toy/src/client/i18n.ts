@@ -25,7 +25,6 @@ const ZH = {
 
   // Shared controls
   refresh: '刷新',
-  retry: '重试',
   loading: '加载中…',
   cancel: '取消',
   close: '关闭',
@@ -38,7 +37,6 @@ const ZH = {
   readOnlyNote: '本页面只通过宿主机上的 toy CLI 读写数据。',
 
   // Account
-  accountTitle: '账号',
   signedInAs: (name: string) => `已登录：${name}`,
   uid: (uid: number) => `UID ${uid}`,
   notLoggedIn: '未登录',
@@ -97,9 +95,7 @@ const ZH = {
   skillWaitCancelled: '已停止等待。命令可能仍在宿主机后台运行，稍后点「刷新状态」查看结果。',
   skillTimeoutHint: '等待超时；宿主机上的命令可能仍在运行或已经卡住，请稍后刷新状态，或重启 DSH 后重试。',
   skillOutput: '命令输出',
-  skillDone: 'skill 已更新',
   skillFailed: 'skill 操作失败',
-  accountUnavailable: '暂时无法读取账号信息',
   refreshAccount: '刷新账号',
 
   // Tabs
@@ -218,7 +214,6 @@ const ZH = {
   toysCount: (total: number) => `共 ${total} 个`,
   toysLoading: '正在读取 Toy 列表…',
   toysEmpty: '还没有 Toy。到「发布 / 更新」创建第一个 Toy。',
-  toysHint: '点击卡片查看详情；选中后可查看统计或直接进入更新。',
   pagePrev: '上一页',
   pageNext: '下一页',
   pageLabel: (page: number, pages: number, total: number) => `第 ${page} / ${pages} 页 · 共 ${total} 个`,
@@ -236,14 +231,9 @@ const ZH = {
   categoryLabel: '分区',
   themeLabel: '主题',
   watermarkLabel: '水印',
-  watermarkOn: '开启',
-  watermarkOff: '关闭',
   posterAlt: 'Toy 封面',
   statusLabel: '状态',
   visibilityLabel: '可见性',
-  noToySelected: '尚未选择 Toy',
-  toySelectHint: '点击上方卡片选择 Toy。',
-  selectToyForStats: '请选择一个 Toy 查看统计',
   selectToy: '选择 Toy',
   refreshToys: '刷新列表',
 
@@ -370,17 +360,10 @@ const ZH = {
   cancelPreviewDone: '已放弃预览，未提交任何内容。',
   reprepare: '重新生成预览',
   resetForm: '重置表单',
-  previewLink: 'preview_url',
   submittedRefreshHint: '列表已刷新，可在「我的 Toy」查看。',
   formMissingPath: '请填写本地包路径。',
   formInvalidTarget: '请选择或输入要更新的 Toy ID。',
   formInvalidPassword: '密码需为 4-32 位。',
-  formUpdateNoTarget: '更新模式需要先选择目标 Toy。',
-  formSummary: '本次提交',
-  formCreateSummary: (path: string) => `新建 Toy · ${path}`,
-  formUpdateSummary: (id: number) => `更新 Toy #${id}`,
-  formUpdateWithPackage: (id: number, path: string) => `更新 Toy #${id} · 上传 ${path}`,
-  formUpdateMetadataOnly: (id: number) => `更新 Toy #${id} · 仅元数据`,
   useHistoryPath: '使用此路径',
 
   // History
@@ -494,7 +477,6 @@ const EN: typeof ZH = {
   appSubtitle: 'Browse your Toys, read stats, precheck a local package, and submit for review only after an explicit confirmation.',
 
   refresh: 'Refresh',
-  retry: 'Retry',
   loading: 'Loading…',
   cancel: 'Cancel',
   close: 'Close',
@@ -506,7 +488,6 @@ const EN: typeof ZH = {
   hintLabel: 'Hint',
   readOnlyNote: 'This page reads and writes only through the toy CLI on the host.',
 
-  accountTitle: 'Account',
   signedInAs: (name: string) => `Signed in as ${name}`,
   uid: (uid: number) => `UID ${uid}`,
   notLoggedIn: 'Not signed in',
@@ -565,9 +546,7 @@ const EN: typeof ZH = {
   skillWaitCancelled: 'Stopped waiting. The command may still be running on the host; press "Refresh status" later to see the result.',
   skillTimeoutHint: 'Timed out waiting; the host command may still be running or stuck. Refresh the status later, or restart DSH and retry.',
   skillOutput: 'Command output',
-  skillDone: 'Skill updated',
   skillFailed: 'Skill operation failed',
-  accountUnavailable: 'The account is unavailable',
   refreshAccount: 'Refresh account',
 
   tabToys: 'My Toys',
@@ -684,7 +663,6 @@ const EN: typeof ZH = {
   toysCount: (total: number) => `${total} total`,
   toysLoading: 'Reading your Toys…',
   toysEmpty: 'No Toys yet. Create the first one from Publish / Update.',
-  toysHint: 'Click a card for details; a selected Toy can be inspected in Stats or opened for an update.',
   pagePrev: 'Previous',
   pageNext: 'Next',
   pageLabel: (page: number, pages: number, total: number) => `Page ${page} of ${pages} · ${total} total`,
@@ -702,14 +680,9 @@ const EN: typeof ZH = {
   categoryLabel: 'Category',
   themeLabel: 'Theme',
   watermarkLabel: 'Watermark',
-  watermarkOn: 'On',
-  watermarkOff: 'Off',
   posterAlt: 'Toy cover',
   statusLabel: 'Status',
   visibilityLabel: 'Visibility',
-  noToySelected: 'No Toy selected',
-  toySelectHint: 'Pick a Toy card above.',
-  selectToyForStats: 'Select a Toy to see its stats',
   selectToy: 'Select a Toy',
   refreshToys: 'Refresh list',
 
@@ -834,17 +807,10 @@ const EN: typeof ZH = {
   cancelPreviewDone: 'Preview discarded; nothing was submitted.',
   reprepare: 'Generate preview again',
   resetForm: 'Reset form',
-  previewLink: 'preview_url',
   submittedRefreshHint: 'The list was refreshed; see My Toys.',
   formMissingPath: 'A local package path is required.',
   formInvalidTarget: 'Select or enter the Toy ID to update.',
   formInvalidPassword: 'The password must be 4-32 characters.',
-  formUpdateNoTarget: 'Update mode needs a target Toy first.',
-  formSummary: 'This submission',
-  formCreateSummary: (path: string) => `Create a Toy · ${path}`,
-  formUpdateSummary: (id: number) => `Update Toy #${id}`,
-  formUpdateWithPackage: (id: number, path: string) => `Update Toy #${id} · upload ${path}`,
-  formUpdateMetadataOnly: (id: number) => `Update Toy #${id} · metadata only`,
   useHistoryPath: 'Use this path',
 
   historyTitle: 'Publish history',

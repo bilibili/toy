@@ -32,7 +32,6 @@ test('overviewRow takes yesterday from the series and sums the window', () => {
   assert.equal(row.pv, 3)
   assert.equal(row.uv, 2)
   assert.equal(row.totalPv, 13)
-  assert.equal(row.totalUv, 10)
   assert.equal(row.spark.length, 2)
   const empty = overviewRow(toy(8, 'eight'), undefined)
   assert.equal(empty.date, undefined)

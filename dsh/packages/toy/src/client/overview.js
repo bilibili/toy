@@ -45,7 +45,6 @@ export function latestDay(stats) {
  *   pv: number,
  *   uv: number,
  *   totalPv: number,
- *   totalUv: number,
  *   spark: readonly import('../shared/types.ts').ToyStatsDay[],
  * }}
  */
@@ -53,10 +52,8 @@ export function overviewRow(toy, stats) {
   const latest = latestDay(stats)
   const items = stats?.items ?? []
   let totalPv = 0
-  let totalUv = 0
   for (const item of items) {
     totalPv += item.pv
-    totalUv += item.uv
   }
   return {
     toy,
@@ -65,7 +62,6 @@ export function overviewRow(toy, stats) {
     pv: latest?.pv ?? 0,
     uv: latest?.uv ?? 0,
     totalPv,
-    totalUv,
     spark: items.slice(-SPARK_DAYS),
   }
 }
