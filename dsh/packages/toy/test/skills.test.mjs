@@ -9,6 +9,7 @@ import {
   createSkillManager,
   hashSkillDir,
   resolveAgentsHome,
+  runCommand,
   shortHash,
   skillsCommand,
 } from '../src/host/skills.js'
@@ -158,4 +159,15 @@ test('the shared service exposes skillStatus with the configured agents home', a
   assert.equal(status.installed, false)
   assert.match(status.installCommand, /skills add/)
   assert.equal(typeof service.installSkill, 'function')
+})
+
+test('runCommand hard-kills a child that ignores SIGTERM', { skip: process.platform === 'win32', timeout: 10_000 }, async () => {
+  const started = Date.now()
+  const result = await runCommand(
+    [process.execPath, '-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"],
+    { timeoutMs: 200, cwd: process.cwd(), env: process.env },
+  )
+  assert.equal(result.ok, false)
+  assert.equal(result.timedOut, true)
+  assert.ok(Date.now() - started < 8_000)
 })

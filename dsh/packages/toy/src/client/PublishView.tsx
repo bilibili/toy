@@ -158,6 +158,8 @@ export function PublishView({
   zh,
   ns,
   toys,
+  catalogueError,
+  onRetryCatalogue,
   prefill,
   active,
   onSubmitted,
@@ -168,6 +170,8 @@ export function PublishView({
   readonly zh: boolean
   readonly ns: ToyNamespace
   readonly toys: ToyListPage | undefined
+  readonly catalogueError?: Failure
+  readonly onRetryCatalogue?: () => void
   readonly prefill: PublishPrefill | undefined
   readonly active: boolean
   readonly onSubmitted: () => void

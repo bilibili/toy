@@ -21,7 +21,7 @@ import type { Copy } from './i18n.ts'
 import { overviewRow, sortOverviewRows, sparkHeights } from './overview.js'
 import type { OverviewRow } from './overview.js'
 import { sliceToyStats } from './statsAggregate.js'
-import { FEED_MIN_DAYS, loadToyStats, readToyStatsCache, writeToyStatsCache } from './statsFeed.ts'
+import { FEED_MIN_DAYS, loadToyStats, readToyStatsCache, setStatsAccount, writeToyStatsCache } from './statsFeed.ts'
 import { ToyPicker } from './ToyPicker.tsx'
 import { Badge, Button, Empty, FailureBanner, Icon, Kpi, SectionHead, Toolbar } from './ui.tsx'
 import type { ToyListPage, ToyStats, ToySummary } from '../shared/types.ts'
@@ -235,6 +235,7 @@ export function StatsView({
   copy,
   zh,
   ns,
+  statsUid,
   toys,
   selected,
   active,
@@ -247,6 +248,7 @@ export function StatsView({
   readonly copy: Copy
   readonly zh: boolean
   readonly ns: ToyNamespace
+  readonly statsUid: number | undefined
   readonly toys: ToyListPage | undefined
   readonly selected: ToySummary | undefined
   readonly active: boolean
@@ -333,6 +335,8 @@ export function StatsView({
   // feed for at least 14 days so the home dashboard can reuse the same load.
   useEffect(() => {
     if (!active || selectedId !== undefined) return
+    if (statsUid === undefined) return
+    setStatsAccount(statsUid)
     const items = itemsRef.current
     if (items.length === 0) return
     const run = overviewSeq.current + 1
@@ -393,7 +397,7 @@ export function StatsView({
     }
     // `toyIds` stands in for the item identities; the array itself is rebuilt
     // by the panel on every render.
-  }, [active, selectedId, days, overviewTick, toyIds, ns, locale, copy.statsOverviewEmpty])
+  }, [active, selectedId, days, overviewTick, toyIds, ns, statsUid, locale, copy.statsOverviewEmpty])
 
   const refreshOverview = useCallback((): void => {
     forceOverview.current = true

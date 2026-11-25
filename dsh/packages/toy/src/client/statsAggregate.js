@@ -152,7 +152,7 @@ export function accountSummary(toys, statsById) {
     wowPercent: weekAgoPv > 0 ? ((yesterdayPv - weekAgoPv) / weekAgoPv) * 100 : undefined,
     last7Pv,
     last7Uv,
-    last7UvAvg: Math.round(last7Uv / 7),
+    last7UvAvg: Math.round(last7Uv / Math.max(1, windowUvByDate.size)),
     last7UvPeak: peakUv,
     last7UvPeakDate: peakUvDate,
     prev7Pv,

@@ -65,7 +65,7 @@ test('accountSummary aggregates yesterday, week-ago, last 7 days and interaction
   assert.equal(summary.prev7Uv, 4)
   assert.equal(summary.wow7PvPercent, 300)
   assert.equal(summary.wow7UvPercent, 300)
-  assert.equal(summary.last7UvAvg, 2)
+  assert.equal(summary.last7UvAvg, 8)
   assert.equal(summary.last7UvPeak, 10)
   assert.equal(summary.last7UvPeakDate, '2026-11-23')
   assert.deepEqual(summary.interactions, { like: 11, favorite: 2, comment: 3, share: 4, total: 20 })

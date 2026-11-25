@@ -120,7 +120,7 @@ function cleanOutput(text) {
  * descendant keeps the stdio pipes open, because otherwise `installSkill` would
  * stay pending forever and the page would show "running" with no end.
  */
-function runCommand(argv, { timeoutMs, cwd, env }) {
+export function runCommand(argv, { timeoutMs, cwd, env }) {
   return new Promise(resolvePromise => {
     const detached = process.platform !== 'win32'
     const child = spawn(argv[0], argv.slice(1), {

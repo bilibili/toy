@@ -11,7 +11,7 @@ import type { ReactNode } from 'react'
 import { formatCount } from './api.ts'
 import type { Failure, ToyNamespace } from './api.ts'
 import type { Copy } from './i18n.ts'
-import { FEED_MIN_DAYS, loadToyStats } from './statsFeed.ts'
+import { FEED_MIN_DAYS, loadToyStats, setStatsAccount } from './statsFeed.ts'
 import type { FeedProgress } from './statsFeed.ts'
 import { accountSummary } from './statsAggregate.js'
 import type { AccountSummary } from './statsAggregate.js'
@@ -151,6 +151,7 @@ export function HomeView({
   copy,
   ns,
   account,
+  statsUid,
   toys,
   active,
   onPublish,
@@ -165,6 +166,7 @@ export function HomeView({
   readonly copy: Copy
   readonly ns: ToyNamespace
   readonly account: AccountView | undefined
+  readonly statsUid: number | undefined
   readonly toys: readonly ToySummary[] | undefined
   readonly active: boolean
   readonly onPublish: () => void
@@ -192,6 +194,8 @@ export function HomeView({
 
   useEffect(() => {
     if (!active) return
+    if (statsUid === undefined) return
+    setStatsAccount(statsUid)
     if (toys === undefined || toys.length === 0) return
     const run = seq.current + 1
     seq.current = run
@@ -221,7 +225,7 @@ export function HomeView({
     return () => {
       seq.current += 1
     }
-  }, [active, ns, toys, tick, copy.homeNoStats])
+  }, [active, ns, toys, tick, statsUid, copy.homeNoStats])
 
   /** The works wall: the newest-updated Toys first, capped for the home page. */
   const wall = useMemo<readonly ToySummary[]>(
