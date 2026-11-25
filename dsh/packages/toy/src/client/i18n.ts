@@ -259,7 +259,7 @@ const ZH = {
   commentLabel: '评论',
   shareLabel: '分享',
   statsRangeHint: '统计窗口截止到昨天，由 toy CLI 返回。',
-  statsUvHint: 'PV 可跨日相加；UV 按天去重、跨天不可相加，所以这里用「日均」和「峰值日」展示 UV。',
+  statsUvHint: 'PV 可跨日相加；UV 按天去重、跨天不可相加，所以这里只展示「有数据日均」和「峰值日」：日均只除以有数据的天数，峰值取单日最大值，都不代表跨天去重人数。',
   dayTooltip: (date: string, pv: number, uv: number, retention?: number) =>
     retention === undefined ? `${date} · PV ${pv} · UV ${uv}` : `${date} · PV ${pv} · UV ${uv} · 留存 ${retention}%`,
   statsOverviewHint: '按昨日 PV 降序；每行显示这个 Toy 的最近趋势和窗口合计，点一行查看完整统计。',
@@ -707,7 +707,7 @@ const EN: typeof ZH = {
   commentLabel: 'Comments',
   shareLabel: 'Shares',
   statsRangeHint: 'The window ends yesterday, as reported by the toy CLI.',
-  statsUvHint: 'PV is additive across days; UV is deduplicated per day and cannot be added across days, so UV is shown as a daily average and a peak day.',
+  statsUvHint: 'PV is additive across days; UV is deduplicated per day and cannot be added across days, so UV is shown as an active-day average and a peak day: the average divides only by days with data and the peak is the busiest single day — neither is a cross-day unique count.',
   dayTooltip: (date: string, pv: number, uv: number, retention?: number) =>
     retention === undefined ? `${date} · PV ${pv} · UV ${uv}` : `${date} · PV ${pv} · UV ${uv} · retention ${retention}%`,
   statsOverviewHint: 'Ranked by yesterday’s PV; each row shows that Toy’s recent trend and window totals. Click a row for full stats.',

@@ -32,8 +32,9 @@ export interface AccountSummary {
   /** The seven days before the last seven (date-13 … date-7). */
   readonly prev7Pv: number
   readonly prev7Uv: number
-  /** 7-day PV/UV compared with the previous seven days; undefined without a base. */
+  /** 7-day PV compared with the previous seven days; undefined without a base. */
   readonly wow7PvPercent: number | undefined
+  /** Week-over-week change in the active-day UV average (not the window sum). */
   readonly wow7UvPercent: number | undefined
   readonly interactions: {
     readonly like: number

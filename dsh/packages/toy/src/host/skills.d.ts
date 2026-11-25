@@ -27,3 +27,12 @@ export function createSkillManager(options?: SkillManagerOptions): {
   status(): Promise<SkillStatus>
   install(): Promise<SkillActionResult>
 }
+
+/**
+ * Run one command with a hard timeout, no shell and bounded output. Exported
+ * for the deadline test; `createSkillManager` is the production entry point.
+ */
+export function runCommand(
+  argv: readonly string[],
+  options: { readonly timeoutMs: number, readonly cwd: string, readonly env: NodeJS.ProcessEnv },
+): Promise<{ ok: boolean, exitCode: number | null, output: string, timedOut?: boolean, spawnError?: Error }>

@@ -90,6 +90,7 @@ export function accountSummary(toys, statsById) {
   let prev7Pv = 0
   let prev7Uv = 0
   const windowUvByDate = new Map()
+  const previousUvByDate = new Map()
   let measured = 0
   let missing = 0
   const interactions = { like: 0, favorite: 0, comment: 0, share: 0 }
@@ -123,6 +124,7 @@ export function accountSummary(toys, statsById) {
       if (previousStart !== undefined && previousEnd !== undefined && day.date >= previousStart && day.date <= previousEnd) {
         prev7Pv += day.pv
         prev7Uv += day.uv
+        previousUvByDate.set(day.date, (previousUvByDate.get(day.date) ?? 0) + day.uv)
       }
     }
     const dyn = stats.dynStat
@@ -143,6 +145,11 @@ export function accountSummary(toys, statsById) {
       peakUvDate = day
     }
   }
+  // The week-over-week badge sits next to the active-day average, so it must
+  // compare averages too: comparing window sums would contradict the number
+  // beside it whenever the two weeks had different numbers of active days.
+  const last7UvAvgRaw = last7Uv / Math.max(1, windowUvByDate.size)
+  const prev7UvAvgRaw = prev7Uv / Math.max(1, previousUvByDate.size)
   return {
     date,
     yesterdayPv,
@@ -152,13 +159,13 @@ export function accountSummary(toys, statsById) {
     wowPercent: weekAgoPv > 0 ? ((yesterdayPv - weekAgoPv) / weekAgoPv) * 100 : undefined,
     last7Pv,
     last7Uv,
-    last7UvAvg: Math.round(last7Uv / Math.max(1, windowUvByDate.size)),
+    last7UvAvg: Math.round(last7UvAvgRaw),
     last7UvPeak: peakUv,
     last7UvPeakDate: peakUvDate,
     prev7Pv,
     prev7Uv,
     wow7PvPercent: prev7Pv > 0 ? ((last7Pv - prev7Pv) / prev7Pv) * 100 : undefined,
-    wow7UvPercent: prev7Uv > 0 ? ((last7Uv - prev7Uv) / prev7Uv) * 100 : undefined,
+    wow7UvPercent: prev7UvAvgRaw > 0 ? ((last7UvAvgRaw - prev7UvAvgRaw) / prev7UvAvgRaw) * 100 : undefined,
     interactions: { ...interactions, total: interactionTotal },
     portfolio,
     measured,

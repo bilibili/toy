@@ -752,6 +752,20 @@ export function PublishView({
               ),
             )
           : null,
+        toys === undefined && catalogueError !== undefined && action === 'update'
+          ? h(
+              'div',
+              { style: { marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 } },
+              h(FailureBanner, { failure: catalogueError, copy }),
+              onRetryCatalogue === undefined
+                ? null
+                : h(
+                    'div',
+                    { className: 'toy-toolbar' },
+                    h(Button, { size: 'sm', onClick: onRetryCatalogue }, h(Icon, { name: 'refresh' }), copy.refresh),
+                  ),
+            )
+          : null,
       ),
       h(
         'div',

@@ -64,7 +64,7 @@ test('accountSummary aggregates yesterday, week-ago, last 7 days and interaction
   assert.equal(summary.prev7Pv, 5)
   assert.equal(summary.prev7Uv, 4)
   assert.equal(summary.wow7PvPercent, 300)
-  assert.equal(summary.wow7UvPercent, 300)
+  assert.equal(summary.wow7UvPercent, 100)
   assert.equal(summary.last7UvAvg, 8)
   assert.equal(summary.last7UvPeak, 10)
   assert.equal(summary.last7UvPeakDate, '2026-11-23')
