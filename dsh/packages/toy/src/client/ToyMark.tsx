@@ -10,9 +10,8 @@ export function ToyMark({ size = 20 }: { readonly size?: number }): ReactNode {
   return h(
     'svg',
     { width: size, height: size, viewBox: '0 0 48 48', 'aria-hidden': true, style: { flex: '0 0 auto', display: 'block' } },
-    h('rect', { width: 48, height: 48, rx: 10, fill: '#fff' }),
     h('path', {
-      fill: '#18191C',
+      fill: 'currentColor',
       d: 'M4 1h40a3 3 0 0 1 3 3v15H33v26a3 3 0 0 1-3 3H18a3 3 0 0 1-3-3V19H1V4a3 3 0 0 1 3-3Z',
     }),
     h('rect', { x: 5, y: 5, width: 9, height: 9, rx: 2, fill: '#00AEEC' }),
