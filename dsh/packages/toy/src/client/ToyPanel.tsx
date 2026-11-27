@@ -28,8 +28,10 @@ import { StatsView } from './StatsView.tsx'
 import { setStatsAccount } from './statsFeed.ts'
 import { useToyStyles } from './styles.ts'
 import { ToysView } from './ToysView.tsx'
+import { TOY_OFFICIAL } from './content.ts'
+import type { Audience } from './audience.ts'
 import { ToyMark } from './ToyMark.tsx'
-import { Banner, Badge, Button, Dialog, FailureBanner, Icon, Toolbar } from './ui.tsx'
+import { Banner, Badge, Button, Dialog, ExternalLink, FailureBanner, Icon, Toolbar } from './ui.tsx'
 import type {
   AccountView,
   CliUpdateView,
@@ -316,6 +318,11 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   }, [])
 
   const loggedIn = account?.loggedIn === true && account.user !== undefined
+  const realAudience: Audience = !loggedIn
+    ? 'anonymous'
+    : catalogue !== undefined && catalogue.total === 0
+      ? 'visitor'
+      : 'creator'
 
   // Fetch the unread count once per account sign-in so the Notifications tab
   // can advertise new items before the user opens it.
@@ -445,6 +452,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
           h(
             'div',
             { className: 'toy-topbar-actions' },
+            h(ExternalLink, { className: 'toy-btn toy-follow-cta', href: TOY_OFFICIAL.space, label: copy.consumerFollow }),
             h(
               'button',
               {
@@ -568,6 +576,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
                 copy,
                 ns,
                 account,
+                audience: realAudience,
                 statsUid: statsAccountUid,
                 toys: catalogue?.items,
                 active: tab === 'home',

@@ -51,6 +51,7 @@ interface Job {
 
 /** localStorage namespace segment; changes when the signed-in account changes. */
 let accountScope = 'anon'
+let scopeVersion = 0
 const cache = new Map<number, CacheEntry>()
 const parsedFeeds = new Map<number, CacheEntry | undefined>()
 const jobs = new Map<number, Job>()
@@ -96,28 +97,35 @@ function removeKey(storageKey: string): void {
   }
 }
 
-/** Drop every stats cache (memory + persisted) for the previous account. */
-function clearAll(): void {
-  cache.clear()
-  parsedFeeds.clear()
-  jobs.clear()
-  generation.clear()
+/** Drop persisted entries that belong to one account scope only. */
+function clearScope(scope: string): void {
   const store = storage()
   if (store === undefined) return
   for (const prefix of [FEED_PREFIX, DETAIL_PREFIX]) {
+    const head = `${prefix}${scope}:`
     for (let index = store.length - 1; index >= 0; index -= 1) {
       const item = store.key(index)
-      if (item !== null && item.startsWith(prefix)) store.removeItem(item)
+      if (item !== null && item.startsWith(head)) store.removeItem(item)
     }
   }
 }
 
-/** Scope the cache to an account uid; changing accounts clears both layers. */
+/**
+ * Scope the cache to an account uid. Only the previous account's persisted
+ * entries are removed: an ``anon -> uid`` transition on a fresh panel mount
+ * must keep that uid's cache so the first render can use it.
+ */
 export function setStatsAccount(uid: number | undefined): void {
   const next = uid === undefined || !Number.isFinite(uid) ? 'anon' : String(uid)
   if (next === accountScope) return
-  clearAll()
+  const previous = accountScope
   accountScope = next
+  scopeVersion += 1
+  cache.clear()
+  parsedFeeds.clear()
+  jobs.clear()
+  generation.clear()
+  clearScope(previous)
 }
 
 function isFresh(at: number | undefined, ttl: number): at is number {
@@ -166,6 +174,14 @@ export function peekFeed(windowDays: number): StatsByToy | undefined {
   const memory = cache.get(windowDays)
   if (memory !== undefined && isFresh(memory.at, FEED_TTL_MS)) return memory.data
   return readPersistedFeed(windowDays)?.data
+}
+
+/** How old the freshest cached window is, or undefined without a cache. */
+export function feedAge(windowDays: number): number | undefined {
+  const memory = cache.get(windowDays)
+  if (memory !== undefined && isFresh(memory.at, FEED_TTL_MS)) return Date.now() - memory.at
+  const persisted = readPersistedFeed(windowDays)
+  return persisted === undefined ? undefined : Date.now() - persisted.at
 }
 
 function readFeedToy(id: number, days: number): ToyStats | undefined {
@@ -229,6 +245,7 @@ export async function loadToyStats(
   }
   const myGeneration = (generation.get(windowDays) ?? 0) + 1
   generation.set(windowDays, myGeneration)
+  const myScopeVersion = scopeVersion
   const base = baseFor(windowDays, force)
   if (base !== undefined) {
     const missing = toys.filter((toy) => !base.data.has(toy.id))
@@ -240,7 +257,7 @@ export async function loadToyStats(
         const filled = await fill(ns, missing, windowDays, base.data.size, toys.length, onProgress, onToy)
         const merged = new Map(base.data)
         for (const [id, value] of filled) merged.set(id, value)
-        if (generation.get(windowDays) === myGeneration) {
+        if (generation.get(windowDays) === myGeneration && scopeVersion === myScopeVersion) {
           cache.set(windowDays, { at: Date.now(), data: merged })
           // Do not extend the freshness of the old entries with this partial fetch.
           writePersistedFeed(windowDays, merged, baseAt)
@@ -253,7 +270,7 @@ export async function loadToyStats(
     windowDays,
     (async () => {
       const data = await fill(ns, toys, windowDays, 0, toys.length, onProgress, onToy)
-      if (generation.get(windowDays) === myGeneration) {
+      if (generation.get(windowDays) === myGeneration && scopeVersion === myScopeVersion) {
         cache.set(windowDays, { at: Date.now(), data })
         writePersistedFeed(windowDays, data)
       }

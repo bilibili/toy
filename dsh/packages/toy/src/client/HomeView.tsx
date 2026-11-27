@@ -12,8 +12,10 @@ import { formatCount } from './api.ts'
 import { TOY_LINKS } from './links.ts'
 import type { Failure, ToyNamespace } from './api.ts'
 import type { Copy } from './i18n.ts'
-import { FEED_MIN_DAYS, loadToyStats, setStatsAccount } from './statsFeed.ts'
+import { FEED_MIN_DAYS, feedAge, loadToyStats, peekFeed, setStatsAccount } from './statsFeed.ts'
 import type { FeedProgress } from './statsFeed.ts'
+import { ConsumerHome } from './ConsumerHome.tsx'
+import type { Audience } from './audience.ts'
 import { accountSummary } from './statsAggregate.js'
 import type { AccountSummary } from './statsAggregate.js'
 import { Badge, Button, Empty, ExternalLink, FailureBanner, Icon, Skeleton } from './ui.tsx'
@@ -152,6 +154,7 @@ export function HomeView({
   copy,
   ns,
   account,
+  audience,
   statsUid,
   toys,
   active,
@@ -167,6 +170,7 @@ export function HomeView({
   readonly copy: Copy
   readonly ns: ToyNamespace
   readonly account: AccountView | undefined
+  readonly audience: Audience
   readonly statsUid: number | undefined
   readonly toys: readonly ToySummary[] | undefined
   readonly active: boolean
@@ -194,7 +198,7 @@ export function HomeView({
   const forceNext = useRef(false)
 
   useEffect(() => {
-    if (!active) return
+    if (!active || audience !== 'creator') return
     if (statsUid === undefined) return
     setStatsAccount(statsUid)
     if (toys === undefined || toys.length === 0) return
@@ -202,7 +206,22 @@ export function HomeView({
     seq.current = run
     const force = forceNext.current
     forceNext.current = false
-    setBusy(true)
+    const cached = peekFeed(FEED_MIN_DAYS)
+    if (cached !== undefined) {
+      // Render the cached account summary immediately; a stale cache is
+      // revalidated in the background without turning the module back into a
+      // skeleton.
+      setSummary(accountSummary(toys, cached))
+    }
+    const age = feedAge(FEED_MIN_DAYS)
+    const missingToy = cached === undefined || toys.some((toy) => !cached.has(toy.id))
+    const stale = cached !== undefined && (missingToy || age === undefined || age > 2 * 60 * 1000)
+    if (cached !== undefined && !force && !stale) {
+      setBusy(false)
+      return
+    }
+    const silent = cached !== undefined && !force
+    setBusy(!silent)
     setError(undefined)
     void loadToyStats(
       ns,
@@ -211,7 +230,7 @@ export function HomeView({
       (next) => {
         if (seq.current === run) setProgress(next)
       },
-      force,
+      force || stale,
     )
       .then((statsById) => {
         if (seq.current !== run) return
@@ -226,7 +245,7 @@ export function HomeView({
     return () => {
       seq.current += 1
     }
-  }, [active, ns, toys, tick, statsUid, copy.homeNoStats])
+  }, [active, audience, ns, toys, tick, statsUid, copy.homeNoStats])
 
   /** The works wall: the newest-updated Toys first, capped for the home page. */
   const wall = useMemo<readonly ToySummary[]>(
@@ -240,6 +259,8 @@ export function HomeView({
   const showSkeleton = dash === undefined && (catalogueLoading || busy)
   const loggedIn = account?.loggedIn === true
   const emptyWorkspace = toys !== undefined && toys.length === 0
+
+  if (audience !== 'creator') return h(ConsumerHome, { copy, audience, onLogin })
 
   return h(
     'div',
