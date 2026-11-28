@@ -95,7 +95,7 @@ so the main surface stays focused on creating.
 
 | Entry | What you can do |
 |---|---|
-| **Home** | Large publish/update call to action plus the account dashboard: yesterday's PV/UV vs the same day last week, the last seven days and their week-over-week PV/UV comparison, the portfolio and cumulative interactions, with a refresh control; a works wall of the newest Toys (App Store-style cards) and guided cold-start states for signed-out users or an empty account, including the Toy permission application link for accounts without publish access |
+| **Home** | Audience-aware. Creators get the publish/update call to action, account dashboard (yesterday PV/UV vs the same day last week, seven-day active-day-average and peak UV, portfolio, interactions) and the works wall. Signed-out users and accounts without a published Toy get a consumer home with the Toy square's current weekly picks (curated snapshot), the official account video feed, a login/create CTA, and the Toy permission link. |
 | **Publish / Update** | Four step sections — target & package, display info, access & activity, precheck & preview. Searchable target picker, package/poster/icon paths with history suggestions, inline validation, local precheck with ERROR/WARN findings, **生成预览**, and a sticky action bar that summarizes the current state and holds precheck/generate/submit; an explicit "我已检查预览" gate still guards **提交审核**; new accounts are pointed to the Toy permission page, and a permission rejection surfaces the same link |
 | **My Toys** | Every Toy in the account (read 50 per Host call, paged 20 per view; above 1000 the grid says so and keeps the first 1000). Search by title/slug/id, filter by status bucket and sort by update/create/title; the selected Toy opens a detail panel with open-page, stats, update, copy link/ID/slug, and skeleton/empty states with a publish shortcut. Password-protected Toys explain that the platform never returns an existing password to the CLI, and link to the publish platform (Publish records) to view or reset it; the plugin never reads or stores the password |
 | **Data** | Default ranked overview: every Toy one row, ordered by yesterday's PV (then UV), each with a trend sparkline (UV bars with a PV line) and window totals; selecting a row opens the detail view with a searchable picker, a mixed PV/UV chart (PV as a line, UV as bars) with y-axis gridlines and a hovered-day readout, next-day retention and like/favorite/comment/share totals, 7/30/90-day windows, open-page shortcut |
@@ -105,8 +105,9 @@ so the main surface stays focused on creating.
 | **Review support** | Opens the WeCom customer-service conversation for review questions |
 | **More info** | Link cards for Toy permission, the public developer FAQ, SDK, CLI, user guide, the interactive ops whitepaper and the Toy square; every entry opens in the browser. No page is embedded, no unpublished API is scraped and no login session is hosted |
 
-The header shows the signed-in user and uid; the CLI binary and version live in
-**维护**. Review support and the Q&A forum open externally in the browser.
+The header shows the signed-in user and uid, an inverse-color **follow** link to the
+哔哩哔哩Toy account, and the CLI binary/version in **维护**. The weekly-pick and
+official-video cards are a curated snapshot; a feed service can replace them later. Review support and the Q&A forum open externally in the browser.
 
 The access password is sent only to the CLI when publishing/updating: it is
 masked (`••••`) in every wire payload, summary and confirmation dialog, so it

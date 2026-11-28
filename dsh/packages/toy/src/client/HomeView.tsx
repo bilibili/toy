@@ -9,14 +9,15 @@ import { createElement as h, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { formatCount } from './api.ts'
-import { TOY_LINKS } from './links.ts'
 import type { Failure, ToyNamespace } from './api.ts'
 import type { Copy } from './i18n.ts'
-import { FEED_MIN_DAYS, loadToyStats, setStatsAccount } from './statsFeed.ts'
+import { FEED_MIN_DAYS, loadToyStats, peekFeed, setStatsAccount } from './statsFeed.ts'
 import type { FeedProgress } from './statsFeed.ts'
+import { ConsumerHome } from './ConsumerHome.tsx'
+import type { Audience } from './audience.ts'
 import { accountSummary } from './statsAggregate.js'
 import type { AccountSummary } from './statsAggregate.js'
-import { Badge, Button, Empty, ExternalLink, FailureBanner, Icon, Skeleton } from './ui.tsx'
+import { Badge, Button, Empty, FailureBanner, Icon, Skeleton } from './ui.tsx'
 import type { AccountView, ToySummary } from '../shared/types.ts'
 
 /** One KPI card in the dashboard. */
@@ -152,6 +153,7 @@ export function HomeView({
   copy,
   ns,
   account,
+  audience,
   statsUid,
   toys,
   active,
@@ -167,6 +169,7 @@ export function HomeView({
   readonly copy: Copy
   readonly ns: ToyNamespace
   readonly account: AccountView | undefined
+  readonly audience: Audience
   readonly statsUid: number | undefined
   readonly toys: readonly ToySummary[] | undefined
   readonly active: boolean
@@ -194,7 +197,7 @@ export function HomeView({
   const forceNext = useRef(false)
 
   useEffect(() => {
-    if (!active) return
+    if (!active || audience !== 'creator') return
     if (statsUid === undefined) return
     setStatsAccount(statsUid)
     if (toys === undefined || toys.length === 0) return
@@ -202,7 +205,21 @@ export function HomeView({
     seq.current = run
     const force = forceNext.current
     forceNext.current = false
-    setBusy(true)
+    const cached = peekFeed(FEED_MIN_DAYS)
+    if (cached !== undefined) {
+      // Render the cached account summary immediately; missing Toys are
+      // merged in later without turning the module back into a skeleton.
+      setSummary(accountSummary(toys, cached))
+    }
+    const missingToy = cached === undefined || toys.some((toy) => !cached.has(toy.id))
+    if (cached !== undefined && !missingToy && !force) {
+      setBusy(false)
+      return
+    }
+    // A cache hit is revalidated incrementally (only missing Toys); force is
+    // reserved for the explicit refresh button, which clears both layers.
+    const silent = cached !== undefined && !force
+    setBusy(!silent)
     setError(undefined)
     void loadToyStats(
       ns,
@@ -226,7 +243,7 @@ export function HomeView({
     return () => {
       seq.current += 1
     }
-  }, [active, ns, toys, tick, statsUid, copy.homeNoStats])
+  }, [active, audience, ns, toys, tick, statsUid, copy.homeNoStats])
 
   /** The works wall: the newest-updated Toys first, capped for the home page. */
   const wall = useMemo<readonly ToySummary[]>(
@@ -238,8 +255,51 @@ export function HomeView({
   const wow = dash?.wowPercent
   const catalogueLoading = toys === undefined && toysError === undefined
   const showSkeleton = dash === undefined && (catalogueLoading || busy)
-  const loggedIn = account?.loggedIn === true
-  const emptyWorkspace = toys !== undefined && toys.length === 0
+
+  if (audience === 'unknown') {
+    if (toysError !== undefined && toys === undefined) {
+      return h(
+        'div',
+        { className: 'toy-home' },
+        h(
+          'section',
+          { className: 'toy-panel' },
+          h(FailureBanner, { failure: toysError, copy }),
+          h(Button, { size: 'sm', onClick: onRetryToys }, h(Icon, { name: 'refresh' }), copy.refresh),
+        ),
+      )
+    }
+    return h(
+      'div',
+      { className: 'toy-home' },
+      h(
+        'section',
+        { className: 'toy-hero' },
+        h('span', { className: 'toy-skeleton toy-skeleton-line', style: { width: '22%' } }),
+        h('span', { className: 'toy-skeleton toy-skeleton-line', style: { width: '48%', height: 28 } }),
+        h('span', { className: 'toy-skeleton toy-skeleton-line', style: { width: '64%' } }),
+      ),
+      h(
+        'section',
+        { className: 'toy-dashboard' },
+        h(
+          'div',
+          { className: 'toy-dash-grid' },
+          Array.from({ length: 4 }, (_unused, index) =>
+            h(
+              'div',
+              { key: String(index), className: 'toy-dash-card' },
+              h('span', { className: 'toy-skeleton toy-skeleton-line', style: { width: '52%' } }),
+              h('span', { className: 'toy-skeleton toy-skeleton-line', style: { width: '34%', height: 24 } }),
+              h('span', { className: 'toy-skeleton toy-skeleton-line', style: { width: '66%' } }),
+            ),
+          ),
+        ),
+      ),
+    )
+  }
+
+  if (audience !== 'creator') return h(ConsumerHome, { copy, audience, onLogin })
 
   return h(
     'div',
@@ -280,60 +340,7 @@ export function HomeView({
           ),
         )
       : null,
-    account !== undefined && !loggedIn
-      ? h(
-          'section',
-          { className: 'toy-onboarding' },
-          h(
-            'div',
-            { className: 'toy-onboarding-head' },
-            h('span', { className: 'toy-onboarding-icon' }, h(Icon, { name: 'user', size: 20 })),
-            h(
-              'div',
-              {},
-              h('h3', { className: 'toy-onboarding-title' }, copy.homeLoginTitle),
-              h('p', { className: 'toy-caption', style: { margin: '4px 0 0' } }, copy.homeLoginSubtitle),
-            ),
-          ),
-          h(
-            'div',
-            { className: 'toy-onboarding-actions' },
-            h(Button, { variant: 'primary', onClick: onLogin }, h(Icon, { name: 'login' }), copy.onboardingLoginCta),
-          ),
-        )
-      : emptyWorkspace
-        ? h(
-            'section',
-            { className: 'toy-onboarding' },
-            h(
-              'div',
-              { className: 'toy-onboarding-head' },
-              h('span', { className: 'toy-onboarding-icon' }, h(Icon, { name: 'plus', size: 20 })),
-              h(
-                'div',
-                {},
-                h('h3', { className: 'toy-onboarding-title' }, copy.onboardingTitle),
-                h('p', { className: 'toy-caption', style: { margin: '4px 0 0' } }, copy.onboardingSubtitle),
-              ),
-            ),
-            h(
-              'ol',
-              { className: 'toy-onboarding-steps' },
-              [copy.onboardingStepLogin, copy.onboardingStepCli, copy.onboardingStepPermission, copy.onboardingStepPublish, copy.onboardingStepData].map((step, index) =>
-                h('li', { key: String(index) }, step),
-              ),
-            ),
-            h('p', { className: 'toy-caption', style: { margin: 0 } }, copy.onboardingPermissionNote),
-            h(
-              'div',
-              { className: 'toy-onboarding-actions' },
-              h(Button, { variant: 'primary', onClick: onPublish }, h(Icon, { name: 'plus' }), copy.onboardingPublishCta),
-              h(ExternalLink, { className: 'toy-btn', href: TOY_LINKS.apply, label: copy.onboardingApplyCta }),
-              h(Button, { onClick: () => onNavigate('info') }, h(Icon, { name: 'info' }), copy.onboardingDocsCta),
-            ),
-          )
-        : null,
-    loggedIn && !emptyWorkspace && toysError === undefined ? h(
+    toysError === undefined ? h(
       'section',
       { className: 'toy-dashboard' },
       h(
@@ -473,7 +480,7 @@ export function HomeView({
         ? h('div', { className: 'toy-caption' }, copy.homeNoDataHint)
         : null,
     ) : null,
-    loggedIn && toysError === undefined ? h(
+    toysError === undefined ? h(
       'section',
       { className: 'toy-works' },
       h(
