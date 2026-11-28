@@ -30,6 +30,7 @@ import { useToyStyles } from './styles.ts'
 import { ToysView } from './ToysView.tsx'
 import { TOY_OFFICIAL } from './content.ts'
 import type { Audience } from './audience.ts'
+import { statusBucket } from './filters.js'
 import { ToyMark } from './ToyMark.tsx'
 import { Banner, Badge, Button, Dialog, ExternalLink, FailureBanner, Icon, Toolbar } from './ui.tsx'
 import type {
@@ -318,11 +319,16 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
   }, [])
 
   const loggedIn = account?.loggedIn === true && account.user !== undefined
-  const realAudience: Audience = !loggedIn
-    ? 'anonymous'
-    : catalogue !== undefined && catalogue.total === 0
-      ? 'visitor'
-      : 'creator'
+  // Do not guess an identity before either account or catalogue is ready.
+  const publishedCount = catalogue?.items.filter((toy) => statusBucket(toy.status) === 'published').length ?? 0
+  const realAudience: Audience =
+    account === undefined || (account.loggedIn === true && catalogue === undefined)
+      ? 'unknown'
+      : !loggedIn
+        ? 'anonymous'
+        : publishedCount > 0
+          ? 'creator'
+          : 'visitor'
 
   // Fetch the unread count once per account sign-in so the Notifications tab
   // can advertise new items before the user opens it.
@@ -563,7 +569,7 @@ export function ToyPanel({ ns }: { readonly ns: ToyNamespace }): ReactNode {
                       Button,
                       { size: 'sm', variant: 'primary', onClick: () => void login() },
                       h(Icon, { name: 'login' }),
-                      copy.onboardingLoginCta,
+                      copy.login,
                     ),
                   },
                   copy.loginHint,

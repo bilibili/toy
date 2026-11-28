@@ -6,4 +6,4 @@
  * permission through the CLI and its permission-required classification.
  */
 
-export type Audience = 'anonymous' | 'visitor' | 'creator'
+export type Audience = 'unknown' | 'anonymous' | 'visitor' | 'creator'

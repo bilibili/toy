@@ -39,7 +39,7 @@ export function ConsumerHome({
         anonymous
           ? h(Button, { variant: 'primary', onClick: onLogin }, h(Icon, { name: 'login', size: 18 }), copy.login)
           : null,
-        h(ExternalLink, { className: 'toy-btn toy-hero-square', href: TOY_LINKS.square, label: copy.consumerSquareCta }),
+        h(ExternalLink, { className: 'toy-btn', href: TOY_LINKS.square, label: copy.consumerSquareCta }),
         anonymous
           ? h(ExternalLink, { className: 'toy-btn', href: TOY_LINKS.apply, label: copy.consumerApplyCta })
           : h(ExternalLink, { className: 'toy-btn', href: TOY_LINKS.publish, label: copy.consumerCreateCta }),
